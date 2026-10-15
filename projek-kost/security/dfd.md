@@ -1,86 +1,81 @@
-# Diagram Aliran Data (DFD): R-Stay Property & Operations Management System
+# Diagram Aliran Data (DFD): R-Stay
 
 ## 1. Pendahuluan
-Dokumen ini memuat Diagram Aliran Data (DFD) Level 0 untuk produk **R-Stay**. Diagram ini memetakan seluruh entitas eksternal, proses inti sistem, tempat penyimpanan data (*data stores*), batas kepercayaan (*trust boundaries*), serta penandaan aset data yang dilindungi menggunakan mekanisme kriptografi.
+Dokumen ini memuat Diagram Aliran Data (DFD) Level 0 untuk produk **R-Stay**. Diagram ini dirancang dengan tata letak vertikal (*portrait*) yang terstruktur lurus dan rapi guna memetakan seluruh interaksi pengguna, proses inti sistem, tempat penyimpanan data, batas kepercayaan, serta penandaan aset yang dilindungi menggunakan mekanisme kriptografi.
 
 ## 2. Diagram Aliran Data (DFD)
 
 ```mermaid
 flowchart TB
-    %% Entitas Eksternal
-    Penyewa["EE-01: Penyewa"]
-    Admin["EE-02: Admin / Pengelola"]
-    WAGateway["EE-03: WA Gateway"]
-
-    %% Batas Kepercayaan Publik
-    subgraph TB01["TB-01: Internet / Public Network - Untrusted"]
-        Penyewa
+    %% Definisi Entitas Eksternal
+    subgraph TB01 [Batas Kepercayaan 1: Jaringan Publik / Internet]
+        Penyewa["EE-01: Penyewa"]
+        Admin["EE-02: Admin / Pengelola"]
     end
 
-    %% Lingkungan Internal Aplikasi
-    subgraph TB02["TB-02: R-Stay Internal Environment"]
+    WAGateway["EE-03: WA Gateway"]
+
+    %% Batas Kepercayaan Internal Sistem
+    subgraph TB02 [Batas Kepercayaan 2: Lingkungan Internal R-Stay]
         Auth(["PR-01: Autentikasi & Otorisasi"])
-        Kamar(["PR-02: Manajemen Kamar & Sewa"])
-        Keuangan(["PR-03: Proses Tagihan & Keuangan"])
+        Kamar(["PR-02: Manajemen Kamar"])
+        Keuangan(["PR-03: Proses Keuangan"])
 
         DBUsers[("DS-01: Kredensial & Sesi (C)")]
         DBPenghuni[("DS-02: Data Penghuni & KTP (C)")]
         DBTransaksi[("DS-03: Data Keuangan")]
     end
 
-    %% Aliran Autentikasi
-    Penyewa -->|Kredensial login - HTTPS| Auth
-    Admin -->|Kredensial login - HTTPS| Auth
-    Auth -->|Validasi hash password & data sesi| DBUsers
-    DBUsers -->|Data verifikasi sesi| Auth
+    %% Aliran Data Utama (Lurus & Terstruktur)
+    Penyewa -->|"Kredensial Masuk (HTTPS)"| Auth
+    Admin -->|"Kredensial Masuk (HTTPS)"| Auth
+    Auth <-->|"Validasi Kata Sandi & Sesi"| DBUsers
 
-    %% Aliran Manajemen Kamar dan Penghuni
-    Admin -->|Input data penyewa & upload KTP| Kamar
-    Kamar -->|Simpan data penghuni| DBPenghuni
-    DBPenghuni -->|Ambil data penghuni| Kamar
+    Admin -->|"Input Data & Unggah KTP"| Kamar
+    Kamar <-->|"Simpan / Ambil Data"| DBPenghuni
 
-    %% Aliran Keuangan
-    Admin -->|Validasi pembayaran| Keuangan
-    Keuangan -->|Simpan rekam transaksi| DBTransaksi
-    DBTransaksi -->|Ambil data transaksi| Keuangan
+    Admin -->|"Validasi Pembayaran"| Keuangan
+    Keuangan <-->|"Simpan / Ambil Transaksi"| DBTransaksi
 
-    %% Integrasi WhatsApp Gateway
-    Keuangan -->|Trigger pengiriman tagihan - HTTPS| WAGateway
-    WAGateway -->|Pesan tagihan WhatsApp| Penyewa
+    Keuangan -->|"Pemicu Pesan (API)"| WAGateway
+    WAGateway -->|"Pesan WhatsApp"| Penyewa
 
-    %% Styling
-    classDef external fill:#e8f1ff,stroke:#3267a8,color:#172b4d
-    classDef process fill:#fff0cf,stroke:#bd8522,color:#49320a
-    classDef datastore fill:#dff4e5,stroke:#318451,color:#163c25
+    %% Pengaturan Warna & Gaya Tampilan
+    classDef external fill:#E8F1FF,stroke:#3267A8,color:#172B4D,stroke-width:2px;
+    classDef process fill:#FFF0CF,stroke:#BD8522,color:#49320A,stroke-width:2px;
+    classDef datastore fill:#DFF4E5,stroke:#318451,color:#163C25,stroke-width:2px;
 
-    class Penyewa,Admin,WAGateway external
-    class Auth,Kamar,Keuangan process
-    class DBUsers,DBPenghuni,DBTransaksi datastore
+    class Penyewa,Admin,WAGateway external;
+    class Auth,Kamar,Keuangan process;
+    class DBUsers,DBPenghuni,DBTransaksi datastore;
+
 ```
 
-## 3. Penjelasan Komponen Diagram
+## 3. Penjelasan Alur dan Komponen Diagram
 
-### A. Entitas Eksternal (External Entities)
+Diagram di atas menguraikan bagaimana data mengalir dari pengguna menuju pusat penyimpanan sistem R-Stay secara sistematis:
 
-1. **EE-01: Penyewa:** Pengguna akhir (penghuni kos) yang berinteraksi melalui jaringan publik untuk melihat informasi kamar dan menerima pengingat tagihan.
-2. **EE-02: Admin / Pengelola:** Pengguna berhak akses tinggi yang mengelola data master kamar, mendaftarkan penghuni, memvalidasi pembayaran, dan melihat laporan keuangan.
-3. **EE-03: WA Gateway:** Layanan API pihak ketiga eksternal yang bertugas mengirimkan pesan teks pengingat tagihan ke nomor WhatsApp penyewa.
+### A. Pihak yang Terlibat (Entitas Eksternal)
 
-### B. Batas Kepercayaan (Trust Boundaries)
+1. **EE-01 (Penyewa):** Pengguna akhir yang mengakses sistem melalui jaringan publik untuk memantau informasi sewa dan menerima pesan pengingat tagihan.
+2. **EE-02 (Admin / Pengelola):** Pengguna dengan hak akses tinggi yang mengelola data master kamar, mendaftarkan penghuni, serta memvalidasi transaksi keuangan kos.
+3. **EE-03 (WA Gateway):** Layanan pihak ketiga eksternal yang berfungsi menjembatani pengiriman pesan teks pengingat tagihan ke nomor WhatsApp penghuni.
 
-1. **TB-01 (Internet / Public Network — Untrusted):** Zona jaringan publik tempat penyewa mengakses aplikasi. Seluruh komunikasi pada area ini wajib dienkripsi menggunakan protokol **HTTPS/TLS** untuk mencegah intersepsi data.
-2. **TB-02 (R-Stay Internal Environment):** Zona internal sistem tempat pemrosesan logika aplikasi dan penyimpanan basis data dikendalikan secara ketat oleh server aplikasi.
+### B. Batas Keamanan Jaringan (Trust Boundaries)
 
-### C. Proses Utama (Processes)
+1. **Batas Kepercayaan 1 (Jaringan Publik / Internet):** Zona luar yang tidak tepercaya. Seluruh komunikasi data yang berasal dari area ini wajib dienkripsi menggunakan protokol **HTTPS** demi mencegah penyadapan informasi.
+2. **Batas Kepercayaan 2 (Lingkungan Internal R-Stay):** Zona internal aplikasi tempat pemrosesan logika dan penyimpanan basis data dikendalikan secara ketat oleh server.
 
-1. **PR-01 (Autentikasi & Otorisasi):** Menangani proses masuk (*login*), pencocokan kredensial, dan penerbitan token sesi (*Session Token/JWT*).
-2. **PR-02 (Manajemen Kamar & Sewa):** Mengelola data ketersediaan unit kamar, pendaftaran penghuni baru, dan pengunggahan arsip identitas.
-3. **PR-03 (Proses Tagihan & Keuangan):** Menghitung besaran tagihan, mencatat status pembayaran lunas/menunggak, serta memicu pengiriman notifikasi tagihan otomatis.
+### C. Proses Utama Sistem (Processes)
 
-### D. Penyimpanan Data & Penandaan Kriptografi (Data Stores)
+1. **PR-01 (Autentikasi & Otorisasi):** Berfungsi memeriksa kecocokan data masuk (*login*) serta mengelola sesi aktif pengguna.
+2. **PR-02 (Manajemen Kamar):** Bertanggung jawab atas pengelolaan ketersediaan unit kamar, pendataan penghuni baru, dan penyimpanan berkas identitas.
+3. **PR-03 (Proses Keuangan):** Mengatur perhitungan tagihan bulanan, pencatatan status pembayaran, serta memicu pengiriman notifikasi penagihan.
 
-Sesuai rubrik penilaian, komponen penyimpanan data yang diamankan dengan enkripsi atau fungsi hash ditandai dengan label **(C)**:
+### D. Tempat Penyimpanan Data & Perlindungan Kriptografi (Data Stores)
 
-1. **DS-01: Kredensial & Sesi (C):** Menyimpan data kata sandi pengguna yang telah dilindungi menggunakan fungsi *slow hash* (Bcrypt/Argon2) serta token sesi aktif terenkripsi.
-2. **DS-02: Data Penghuni & KTP (C):** Menyimpan basis data biodata penghuni serta berkas unggahan foto KTP yang diamankan dengan enkripsi saat disimpan (*Encryption at-Rest*).
-3. **DS-03: Data Keuangan:** Menyimpan rekam jejak transaksi pembayaran, status piutang, dan riwayat tagihan bulanan kos.
+Komponen yang diberi tanda **(C)** merupakan penyimpanan data yang diamankan menggunakan mekanisme kriptografi:
+
+1. **DS-01 (Kredensial & Sesi - C):** Menyimpan kata sandi pengguna dalam bentuk *hash* yang aman (menggunakan fungsi *slow hash*) serta mengamankan token sesi aktif.
+2. **DS-02 (Data Penghuni & KTP - C):** Menyimpan data biodata serta berkas foto kartu identitas (KTP) penghuni yang dilindungi dengan enkripsi saat disimpan di server (*Encryption at-Rest*).
+3. **DS-03 (Data Keuangan):** Menyimpan rekam jejak transaksi pembayaran sewa kos dan status pelunasan secara berkala.
