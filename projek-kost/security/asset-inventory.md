@@ -1,4 +1,4 @@
-# Inventaris Aset: R-Stay Property & Operations Management System
+# Inventaris Aset: R-Stay
 
 ## 1. Pendahuluan
 Dokumen *Asset Inventory* ini memuat daftar inventaris seluruh aset penting yang terdapat pada aplikasi pengelolaan properti dan kos **R-Stay**. Identifikasi aset ini mencakup komponen data, perangkat lunak, hingga infrastruktur server. Setiap aset dinilai berdasarkan tiga dimensi keamanan informasi standar CIA (*Confidentiality, Integrity, Availability*), yang disertai dengan penjelasan alasan penilaian berdasarkan kondisi nyata operasional sistem yang berjalan.
