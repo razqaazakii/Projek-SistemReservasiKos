@@ -6,49 +6,57 @@ Dokumen ini memuat Diagram Aliran Data (DFD) Level 0 untuk produk **R-Stay**. Di
 ## 2. Diagram Aliran Data (DFD)
 
 ```mermaid
-flowchart TB
-    %% Definisi Entitas Eksternal
-    subgraph TB01 [Batas Kepercayaan 1: Jaringan Publik / Internet]
-        Penyewa["EE-01: Penyewa"]
-        Admin["EE-02: Admin / Pengelola"]
+flowchart LR
+    %% Entitas Eksternal
+    E01["E01 - Penyewa"]
+    E02["E02 - Admin / Pengelola"]
+    E03["E03 - WA Gateway API"]
+
+    %% TB-1: Klien / Browser
+    subgraph TB1["TB-1 - Browser Pengguna"]
+        P01["P01 - Antarmuka Next.js"]
+        D01[("D01 - Cookies / localStorage<br/>(Token Sesi JWT)")]
     end
 
-    WAGateway["EE-03: WA Gateway"]
-
-    %% Batas Kepercayaan Internal Sistem
-    subgraph TB02 [Batas Kepercayaan 2: Lingkungan Internal R-Stay]
-        Auth(["PR-01: Autentikasi & Otorisasi"])
-        Kamar(["PR-02: Manajemen Kamar"])
-        Keuangan(["PR-03: Proses Keuangan"])
-
-        DBUsers[("DS-01: Kredensial & Sesi (C)")]
-        DBPenghuni[("DS-02: Data Penghuni & KTP (C)")]
-        DBTransaksi[("DS-03: Data Keuangan")]
+    %% TB-2: Lingkungan Server
+    subgraph TB2["TB-2 - Server Aplikasi R-Stay"]
+        P02["P02 - Endpoint API<br/>(Kamar, Penghuni, Keuangan)"]
+        P03["P03 - lib/auth.ts<br/>(Autentikasi & Otorisasi)"]
+        P04["P04 - lib/crypto.ts<br/>(Kriptografi)"]
+        P05["P05 - lib/audit.ts<br/>(Pencatatan Aktivitas)"]
     end
 
-    %% Aliran Data Utama (Lurus & Terstruktur)
-    Penyewa -->|"Kredensial Masuk (HTTPS)"| Auth
-    Admin -->|"Kredensial Masuk (HTTPS)"| Auth
-    Auth <-->|"Validasi Kata Sandi & Sesi"| DBUsers
+    %% TB-3: Basis Data Utama
+    subgraph TB3["TB-3 - Penyimpanan Server"]
+        D02[("D02 - Database PostgreSQL<br/>KTP terenkripsi AES-256<br/>Password hash Bcrypt/Argon2<br/>Catatan Transaksi & Audit")]
+    end
 
-    Admin -->|"Input Data & Unggah KTP"| Kamar
-    Kamar <-->|"Simpan / Ambil Data"| DBPenghuni
+    %% TB-4: Kredensial Server (Rahasia)
+    subgraph TB4["TB-4 - Konfigurasi Rahasia"]
+        D03[("D03 - Environment secrets")]
+    end
 
-    Admin -->|"Validasi Pembayaran"| Keuangan
-    Keuangan <-->|"Simpan / Ambil Transaksi"| DBTransaksi
-
-    Keuangan -->|"Pemicu Pesan (API)"| WAGateway
-    WAGateway -->|"Pesan WhatsApp"| Penyewa
-
-    %% Pengaturan Warna & Gaya Tampilan
-    classDef external fill:#E8F1FF,stroke:#3267A8,color:#172B4D,stroke-width:2px;
-    classDef process fill:#FFF0CF,stroke:#BD8522,color:#49320A,stroke-width:2px;
-    classDef datastore fill:#DFF4E5,stroke:#318451,color:#163C25,stroke-width:2px;
-
-    class Penyewa,Admin,WAGateway external;
-    class Auth,Kamar,Keuangan process;
-    class DBUsers,DBPenghuni,DBTransaksi datastore;
-
+    %% Aliran Data (Flows)
+    E01 -->|"F01 - Input dan interaksi"| P01
+    E02 -->|"F02 - Kelola kos & validasi"| P01
+    P01 <-->|"F03 - Simpan atau muat token JWT"| D01
+    P01 <-->|"F04 - Permintaan dan respons HTTP"| P02
+    
+    P02 <-->|"F05 - Pemeriksaan autentikasi & peran"| P03
+    P03 <-->|"F06 - Akun dan password hash"| D02
+    D03 -->|"F07 - Secret JWT"| P03
+    
+    P02 <-->|"F08 - Operasi kriptografi KTP"| P04
+    D03 -->|"F09 - Secret kunci enkripsi"| P04
+    P04 <-->|"F10 - Baca/tulis KTP terenkripsi"| D02
+    
+    P02 <-->|"F11 - Operasi CRUD Kamar & Transaksi"| D02
+    P02 -->|"F12 - Aktivitas sensitif yang dicatat"| P05
+    P05 -->|"F13 - Catatan audit (Audit Trail)"| D02
+    
+    D03 -->|"F14 - API Key WA Gateway"| P02
+    P02 -->|"F15 - Pemicu tagihan otomatis"| E03
+    E03 -->|"F16 - Pesan WhatsApp"| E01
 ```
 
 ## 3. Penjelasan Alur dan Komponen Diagram
