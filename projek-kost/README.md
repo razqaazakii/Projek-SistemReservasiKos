@@ -335,10 +335,10 @@ Antarmuka dibangun dengan sistem *mobile-first* menggunakan utility class Tailwi
 ![Hasil Screenshot Ponsel](./assets/fotoUkuranPonsel.png)
 
 #### 2. Hasil Screenshot Tablet
-![Hasil Screenshot Tablet](./assets/FotoUkuranTablet.png)
+![Hasil Screenshot Tablet](./assets/fotoUkuranTablet.png)
 
 #### 3. Hasil Screenshot Desktop
-![Hasil Screenshot Desktop](./assets/FotoUkuranDekstop.png)
+![Hasil Screenshot Desktop](./assets/fotoUkuranDekstop.png)
 
 ---
 
@@ -360,18 +360,6 @@ Aplikasi dirancang dengan kepatuhan terhadap prinsip WCAG 2.1 Level AA untuk men
 
 ### Bukti Hasil Audit Lighthouse Accessibility
 ![Hasil Audit Lighthouse Accessibility](./assets/fotoAccessbility.png)
-
----
-
-## 8. Teknologi yang Digunakan
-
-- **Framework Web:** [Next.js](https://nextjs.org/) versi 16 (React 19, Turbopack, App Router)
-- **Bahasa Pemrograman:** [TypeScript](https://www.typescriptlang.org/) (Strict Type-Safety)
-- **Framework Styling:** [Tailwind CSS](https://tailwindcss.com/) v4
-- **Icon Library:** [Lucide React](https://lucide.dev/)
-- **Testing Framework:** [Jest](https://jestjs.io/) (Untuk unit test modul keamanan & pengujian fungsional)
-
----
 
 ## 9. Panduan Menjalankan Proyek Secara Lokal
 
