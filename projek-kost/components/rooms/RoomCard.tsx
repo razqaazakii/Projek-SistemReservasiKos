@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import Badge, { BadgeVariant } from './Badge';
+import Badge, { BadgeVariant } from '@/components/ui/Badge';
 import { Room } from '@/types/room';
 
 export interface RoomCardProps {

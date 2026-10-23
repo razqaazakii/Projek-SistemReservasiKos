@@ -7,9 +7,9 @@ import Image from 'next/image';
 import { roomsData } from '@/data/roomsData';
 import { Room, BookingFormData, BookingFormErrors } from '@/types/room';
 import { getAuthUser, AuthUser } from '@/lib/auth';
-import InputField from '@/components/InputField';
-import Button from '@/components/Button';
-import Badge from '@/components/Badge';
+import InputField from '@/components/ui/InputField';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 
 function BookingFormContent() {
   const searchParams = useSearchParams();

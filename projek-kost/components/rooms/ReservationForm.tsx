@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 import { roomsData } from '@/data/roomsData';
 import { Room, BookingFormData, BookingFormErrors } from '@/types/room';
-import Button from '@/components/Button';
-import InputField from '@/components/InputField';
-import Badge from '@/components/Badge';
+import Button from '@/components/ui/Button';
+import InputField from '@/components/ui/InputField';
+import Badge from '@/components/ui/Badge';
 
 interface ReservationFormProps {
   initialRoomId?: string;

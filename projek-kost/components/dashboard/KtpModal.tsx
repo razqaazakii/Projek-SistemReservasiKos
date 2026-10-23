@@ -4,7 +4,7 @@
 // components/dashboard/KtpModal.tsx
 // Modal untuk menampilkan foto KTP penyewa
 // ============================================================
-
+ 
 import React from "react";
 import { X, CreditCard } from "lucide-react";
 

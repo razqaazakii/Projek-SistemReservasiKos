@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { roomsData } from '@/data/roomsData';
-import RoomCard from '@/components/RoomCard';
-import Button from '@/components/Button';
+import RoomCard from '@/components/rooms/RoomCard';
+import Button from '@/components/ui/Button';
 
 export default function CatalogPage() {
   const [searchQuery, setSearchQuery] = useState('');

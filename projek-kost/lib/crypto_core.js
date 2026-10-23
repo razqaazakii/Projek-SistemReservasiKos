@@ -107,7 +107,15 @@ function verifyBookingMac(data, secretKey, mac) {
  * Hash objek reservasi menjadi SHA-256 hex string.
  */
 function hashReservationData(reservationObject) {
-  const canonicalString = JSON.stringify(reservationObject);
+  if (!reservationObject || typeof reservationObject !== 'object') {
+    return crypto.createHash('sha256').update(String(reservationObject), 'utf8').digest('hex');
+  }
+  const sortedKeys = Object.keys(reservationObject).sort();
+  const sortedObj = {};
+  for (const key of sortedKeys) {
+    sortedObj[key] = reservationObject[key];
+  }
+  const canonicalString = JSON.stringify(sortedObj);
   return crypto.createHash('sha256').update(canonicalString, 'utf8').digest('hex');
 }
 

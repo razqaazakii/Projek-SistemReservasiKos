@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { roomsData } from '@/data/roomsData';
 import { Room } from '@/types/room';
-import Badge from '@/components/Badge';
+import Badge from '@/components/ui/Badge';
 
 interface RoomDetailPageProps {
   params: Promise<{
@@ -20,6 +20,16 @@ export async function generateStaticParams() {
 
 export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
   const { id } = await params;
+
+  // Simulasi pengujian untuk loading.tsx dan error.tsx
+  if (id === 'test-error') {
+    throw new Error('Simulasi kendala sistem saat memuat rute detail kamar.');
+  }
+
+  if (id === 'test-loading') {
+    await new Promise((resolve) => setTimeout(resolve, 8000));
+  }
+
   const room = roomsData.find((r: Room) => r.id === id);
 
   if (!room) {
@@ -40,7 +50,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
       {/* Breadcrumb & Navigasi Kembali */}
       <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-sm text-slate-600">
         <Link
-          href="/"
+          href="/rooms"
           className="hover:text-blue-600 underline font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
         >
           Katalog Kos
@@ -263,7 +273,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
 
             <div className="mt-4 text-center">
               <Link
-                href="/"
+                href="/rooms"
                 className="text-xs font-semibold text-slate-600 hover:text-blue-600 underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
               >
                 ← Kembali ke Katalog Kamar

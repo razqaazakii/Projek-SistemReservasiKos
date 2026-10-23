@@ -5,7 +5,7 @@ export interface OptionType {
   value: string | number;
 }
 
-// ✅ Pisahkan 'type' HTML yang valid dari 'field variant' untuk render mode
+// Pisahkan 'type' HTML yang valid dari 'field variant' untuk render mode
 type InputType = 'text' | 'email' | 'tel' | 'date' | 'number';
 type FieldVariant = InputType | 'select' | 'textarea';
 
@@ -13,7 +13,7 @@ export interface InputFieldProps {
   id: string;
   name: string;
   label: string;
-  // ✅ Gunakan FieldVariant — bukan mencampur HTML type dengan render mode
+  // Gunakan FieldVariant — bukan mencampur HTML type dengan render mode
   type?: FieldVariant;
   value: string | number;
   onChange: (
@@ -57,7 +57,7 @@ export default function InputField({
   const helperId = `${id}-helper`;
   const hasError = Boolean(error);
 
-  // ✅ Komputasi aria-describedby sekali — tidak diulang di setiap branch render
+  // Komputasi aria-describedby sekali — tidak diulang di setiap branch render
   const ariaDescribedBy = hasError ? errorId : helperText ? helperId : undefined;
 
   const baseInputStyles = [
@@ -69,7 +69,7 @@ export default function InputField({
     'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
   ].join(' ');
 
-  // ✅ Shared props untuk semua tipe field — hindari duplikasi
+  // Shared props untuk semua tipe field — hindari duplikasi
   const sharedProps = {
     id,
     name,
@@ -98,7 +98,7 @@ export default function InputField({
       {type === 'select' ? (
         <select
           {...sharedProps}
-          // ✅ String() memastikan value aman untuk select meski bertipe number
+          // String() memastikan value aman untuk select meski bertipe number
           value={String(value)}
           className={`${baseInputStyles} cursor-pointer`}
         >
@@ -116,7 +116,7 @@ export default function InputField({
       ) : type === 'textarea' ? (
         <textarea
           {...sharedProps}
-          // ✅ String() memastikan value aman untuk textarea meski bertipe number
+          // String() memastikan value aman untuk textarea meski bertipe number
           value={String(value)}
           placeholder={placeholder}
           rows={rows}
@@ -125,7 +125,7 @@ export default function InputField({
       ) : (
         <input
           {...sharedProps}
-          // ✅ type di sini adalah InputType — nilai yang valid untuk atribut HTML
+          // type di sini adalah InputType — nilai yang valid untuk atribut HTML
           type={type as InputType}
           value={value}
           placeholder={placeholder}

@@ -1,9 +1,7 @@
 "use client";
 
-// ============================================================
 // lib/dashboardContext.tsx
 // Context global untuk manajemen data Dashboard (Penyewa & Kamar)
-// ============================================================
 
 import React, {
   createContext,
@@ -14,7 +12,7 @@ import React, {
 } from "react";
 import { Tenant, Room } from "@/types/dashboard";
 
-// ── Helper format Rupiah ────────────────────────────────────
+// Helper format Rupiah 
 export function formatRupiah(value: number): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -24,7 +22,7 @@ export function formatRupiah(value: number): string {
   }).format(value);
 }
 
-// ── Tipe Context ────────────────────────────────────────────
+// Tipe Context
 interface DashboardContextValue {
   tenants: Tenant[];
   rooms: Room[];
@@ -37,7 +35,7 @@ interface DashboardContextValue {
   addDiscount: (tenantId: string, amount: number) => void;
 }
 
-// ── Data awal (seed) ─────────────────────────────────────────
+// Data awal (seed)
 const INITIAL_ROOMS: Room[] = [
   { id: "r1", number: "101", type: "Standar", price: 800000, status: "Terisi", floor: 1 },
   { id: "r2", number: "102", type: "Standar", price: 800000, status: "Tersedia", floor: 1 },
@@ -113,58 +111,58 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   // Check-out penyewa → kamar kembali Tersedia
   const checkoutTenant = useCallback((id: string) => {
-    setTenants((prev) => {
-      const tenant = prev.find((t) => t.id === id);
+    setTenants((prevTenants) => {
+      const tenant = prevTenants.find((t) => t.id === id);
       if (tenant) {
-        setRooms((rooms) =>
-          rooms.map((r) =>
+        setRooms((prevRooms) =>
+          prevRooms.map((r) =>
             r.id === tenant.roomId ? { ...r, status: "Tersedia" } : r
           )
         );
       }
-      return prev.filter((t) => t.id !== id);
+      return prevTenants.filter((t) => t.id !== id);
     });
   }, []);
 
   // Pindah kamar penyewa
   const moveTenantRoom = useCallback((tenantId: string, newRoomId: string) => {
-    setTenants((prev) => {
-      const tenant = prev.find((t) => t.id === tenantId);
-      if (!tenant) return prev;
+    setRooms((prevRooms) => {
+      const targetRoom = prevRooms.find((r) => r.id === newRoomId);
+      if (!targetRoom) return prevRooms;
 
-      // Bebaskan kamar lama, isi kamar baru
-      setRooms((rooms) =>
-        rooms.map((r) => {
-          if (r.id === tenant.roomId) return { ...r, status: "Tersedia" };
-          if (r.id === newRoomId) return { ...r, status: "Terisi" };
-          return r;
-        })
-      );
+      setTenants((prevTenants) => {
+        const tenant = prevTenants.find((t) => t.id === tenantId);
+        if (!tenant) return prevTenants;
+        const oldRoomId = tenant.roomId;
 
-      return prev.map((t) => {
-        if (t.id !== tenantId) return t;
-        // Cari nomor & harga kamar baru (dibaca langsung dari state rooms saat ini)
-        return { ...t, roomId: newRoomId };
-      });
-    });
+        // Jadwalkan update status kamar
+        setTimeout(() => {
+          setRooms((rooms) =>
+            rooms.map((r) => {
+              if (r.id === oldRoomId) return { ...r, status: "Tersedia" };
+              if (r.id === newRoomId) return { ...r, status: "Terisi" };
+              return r;
+            })
+          );
+        }, 0);
 
-    // Update roomNumber & biayaSewa berdasarkan kamar baru
-    setRooms((currentRooms) => {
-      const newRoom = currentRooms.find((r) => r.id === newRoomId);
-      if (newRoom) {
-        setTenants((prev) =>
-          prev.map((t) =>
-            t.id === tenantId
-              ? { ...t, roomId: newRoomId, roomNumber: newRoom.number, biayaSewa: newRoom.price }
-              : t
-          )
+        return prevTenants.map((t) =>
+          t.id === tenantId
+            ? {
+                ...t,
+                roomId: newRoomId,
+                roomNumber: targetRoom.number,
+                biayaSewa: targetRoom.price,
+              }
+            : t
         );
-      }
-      return currentRooms;
+      });
+
+      return prevRooms;
     });
   }, []);
 
-  // Beri diskon → kurangi biayaSewa
+  // Memberi diskon
   const addDiscount = useCallback((tenantId: string, amount: number) => {
     setTenants((prev) =>
       prev.map((t) =>
@@ -194,7 +192,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// ── Hook ─────────────────────────────────────────────────────
+// Hook
 export function useDashboard(): DashboardContextValue {
   const ctx = useContext(DashboardContext);
   if (!ctx) {
