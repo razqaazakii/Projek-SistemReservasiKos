@@ -1,131 +1,167 @@
-# Dokumen Teknis Modul 5 — Formulir, Validasi, Session, dan Cookie
+# Dokumen Teknis Modul 5 - Formulir, Validasi, Session, dan Cookie
 
-**Nama/NIM** : Razqa Azaki / 105224046  
-**Repositori** : https://github.com/razqaazakii/Projek-SistemReservasiKos.git  
-
----
+**Nama** : Razqa Azaki
+**NIM**  : 105224046  
 
 ## 1. Skema Validasi
 
 ### Tabel Kolom Formulir
 
-| Nama Kolom | Aturan Zod | Pesan Galat |
-| :--- | :--- | :--- |
-| `name` | `trim().min(3).max(100)` | `"Judul minimal 3 karakter."` / `"Judul maksimal 100 karakter."` |
-| `price` | `preprocess(numeric).min(100000).max(100000000)` | `"Harga sewa minimal Rp 100.000 per bulan."` / `"Harga sewa tidak valid."` |
-| `type` | `z.enum(['Putra', 'Putri', 'Campur'])` | `"Pilih salah satu kategori."` |
-| `location` | `trim().min(5)` | `"Lokasi kos minimal 5 karakter untuk kejelasan wilayah."` |
-| `description` | `trim().min(10).max(300)` | `"Deskripsi minimal 10 karakter."` / `"Deskripsi maksimal 300 karakter."` |
-| `facilities` | `array(z.string()).min(1)` | `"Minimal cantumkan 1 fasilitas kamar (contoh: AC, WiFi, Kasur)."` |
-| `imageUrl` | `url().optional().or(literal(''))` | `"Format URL gambar tidak valid."` |
+Berikut adalah pemetaan skema validasi Zod (`lib/validations/room.ts`) yang diterapkan pada formulir penambahan kamar kos (`app/katalog/tambah/page.tsx`):
 
-### Aturan Semantik di Server Action
-* **Aturan:** Pemeriksaan keunikan nama kamar kos via query database (`prisma.room.findFirst`).
-* **Pesan Galat:** `"Judul sudah dipakai item lain."`
-* **Alasan:** Zod hanya memeriksa format teks, sedangkan keunikan data membutuhkan pengecekan langsung ke basis data PostgreSQL secara asinkron di server.
+| Nama Kolom | Tipe Data / Kontrol | Aturan Zod | Pesan Galat (*Error Message*) |
+| :--- | :--- | :--- | :--- |
+| `name` | `string` (Input Text) | `trim().min(3).max(100)` | `"Judul minimal 3 karakter."` / `"Judul maksimal 100 karakter."` |
+| `price` | `number` (Input Number/Text) | `preprocess(numeric).min(100000).max(100000000)` | `"Harga sewa minimal Rp 100.000 per bulan."` / `"Harga sewa tidak valid."` |
+| `type` | `enum` (Radio / Select) | `z.enum(['Putra', 'Putri', 'Campur'])` | `"Pilih salah satu kategori."` |
+| `location` | `string` (Input Text) | `trim().min(5)` | `"Lokasi kos minimal 5 karakter untuk kejelasan wilayah."` |
+| `description` | `string` (Textarea) | `trim().min(10).max(300)` | `"Deskripsi minimal 10 karakter."` / `"Deskripsi maksimal 300 karakter."` |
+| `facilities` | `string[]` (Checkbox / Tags) | `array(z.string()).min(1)` atau string transform | `"Minimal cantumkan 1 fasilitas kamar (contoh: AC, WiFi, Kasur)."` |
+| `imageUrl` | `string` (Input URL) | `url().optional().or(literal(''))` | `"Format URL gambar tidak valid."` |
+| `isAvailable` | `boolean` (Toggle Switch) | `z.boolean().default(true)` | Nilai default `true` |
+| `latitude` | `number` (Input Float) | `preprocess().nullable().optional()` | Format koordinat numerik |
+| `longitude` | `number` (Input Float) | `preprocess().nullable().optional()` | Format koordinat numerik |
 
 ---
+
+### Aturan Semantik yang Diperiksa di Server Action dan Alasannya
+
+* **Aturan Semantik:**
+  Pemeriksaan keunikan Nama/Judul Kamar Kos (`name`). Sistem akan menolak pendaftaran kamar baru apabila nama kamar telah terdaftar di database PostgreSQL.
+
+* **Alasan:**
+  Validasi sintaks menggunakan Zod hanya bekerja pada struktur data masukan murni tipe dan panjang karakter tanpa konteks kondisi data yang sudah tersimpan di database. Pemeriksaan semantik memerlukan interaksi tidak bersamaan terhadap database  PostgreSQL untuk mencegah redundansi entitas dan menjaga integritas data katalog.
 
 ## 2. Alur Server Action
 
 ### Urutan Alur Eksekusi
-1. **Sesi:** Cek `bacaSesi()`. Jika tidak sah/palsu, tolak: `"Silakan masuk terlebih dahulu."`.
-2. **Validasi Bentuk:** Cek struktur payload via Zod `roomSchema.safeParse()`.
-3. **Validasi Semantik:** Cek duplikasi nama kamar ke database PostgreSQL.
-4. **Mutasi:** Simpan entitas kamar baru via `prisma.room.create()`.
-5. **RevalidatePath:** Perbarui cache rute `/rooms`, `/dashboard/penyewa`, dan `/booking`.
-6. **Redirect / Response:** Kembalikan status sukses ke klien.
 
-### Pembagian Berkas
-* **Server Component (`app/masuk/page.tsx`):** Render HTML awal di server dan membaca cookie rute.
-* **Client Component (`app/katalog/tambah/page.tsx`):** State form, atribut `noValidate`, dan tampilan pesan galat.
-* **Berkas `"use server"` (`actions/session.ts`, `actions/room.ts`):** Eksekusi verifikasi sesi, validasi Zod, dan mutasi basis data.
+Setiap permintaan mutasi data pada `tambahItemKatalogAction` (`actions/session.ts`) melewati beberapa tahapan sebagai berikut:
 
----
+1. **Pemeriksaan Sesi (`bacaSesi()`):** Membaca cookie sesi peramban dan mencocokkan UUID terhadap `serverSessionMap`. Jika sesi tidak valid, langsung mengembalikan status gagal tanpa memproses payload formulir.
+2. **Validasi Bentuk (`roomSchema.safeParse()`):** Memastikan seluruh field masukan memenuhi batas minimal, batas maksimal, tipe data, dan format Zod.
+3. **Validasi Semantik:** Memeriksa aturan bisnis dinamis terhadap database (pemeriksaan nama unik).
+4. **Mutasi Data:** Menjalankan operasi persisten menggunakan Prisma ORM (`prisma.room.create`) ke database PostgreSQL.
+5. **Revalidasi Jalur Cache (`revalidatePath`):** Memanggil `revalidatePath('/rooms')`, `revalidatePath('/dashboard/penyewa')`, dan `revalidatePath('/booking')` agar data terbaru langsung ter-render pada permintaan berikutnya.
+6. **Respon / Redirect:** Mengembalikan objek status terstruktur `{ success: true, message, data }` kepada komponen klien untuk dieksekusi navigasinya.
+
+### Pembagian Berkas Arsitektur
+
+| Kategori Berkas | Berkas Terkait | Tanggung Jawab Utama |
+| :--- | :--- | :--- |
+| **Server Component** | `app/masuk/page.tsx`, layout induk | Merender HTML awal di sisi server tanpa menyertakan JavaScript interaktif, membaca header/cookie untuk pemeriksaan awal. |
+| **Client Component** | `app/katalog/tambah/page.tsx` (`'use client'`) | Mengelola state formulir lokal, mengendalikan atribut `noValidate`, menangani event input, menampilkan pesan galat per-kolom, dan memicu router klien. |
+| **Berkas `"use server"`** | `actions/session.ts`, `actions/room.ts` | Menyediakan fungsi Server Action publik yang aman untuk dipanggil langsung dari klien guna mengeksekusi logika sesi dan manipulasi database. |
+| **Modul Pendukung** | `lib/session.ts`, `lib/validations/room.ts`, `proxy.ts` | Penyimpanan sesi in-memory, skema validasi Zod, dan proxy/middleware optimistik rute. |
 
 ## 3. Bukti Uji Validasi
 
+Berikut adalah bukti tangkapan layar pengujian validasi formulir beserta penjelasannya:
+
 ### 1. Validasi Format Email
 ![Format Email Tidak Valid](../../assets/modul_5/Format_emailNoValid.png)
-* Input email tanpa format domain valid memicu galat Zod: *"Format email tidak valid."*.
 
-### 2. Validasi Panjang Kata Sandi
+* **Penjelasan:** Pengujian dilakukan dengan memasukkan format email yang tidak memenuhi standar penulisan alamat email. Sistem secara otomatis mendeteksi kegagalan dan memunculkan pesan galat *"Format email tidak valid."*.
+
+### 2. Validasi Batas Minimal Panjang Kata Sandi
 ![Kata Sandi Terlalu Pendek](../../assets/modul_5/Kata_Sandi_Terlalu_Pendek.png)
-* Input kata sandi kurang dari 8 karakter memicu galat: *"Kata sandi minimal 8 karakter."*.
 
-### 3. Validasi Kredensial Akun
+* **Penjelasan:** Pengujian dilakukan dengan memasukkan kata sandi yang kurang dari 8 karakter. Sistem memicu validasi dan menampilkan pesan galat *"Kata sandi minimal 8 karakter."* untuk memastikan persyaratan keamanan kata sandi pengguna terpenuhi. 
+
+### 3. Validasi Kredensial Akun (Email dan Kata Sandi)
 ![Kredensial Tidak Cocok](../../assets/modul_5/Kredensial_Tidak_Cocok.png)
-* Kombinasi email/password salah memicu notifikasi penolakan: *"Email atau kata sandi salah."*.
 
-### 4. Uji Bypass Validasi Klien (`noValidate`)
+* **Penjelasan:** Pengujian dilakukan dengan memasukkan secara bersamaan email dan kata sandi yang salah / tidak terdaftar di sistem. Sistem menolak proses autentikasi dan menampilkan notifikasi kesalahan umum *"Email atau kata sandi salah."* guna mencegah pengungkapan informasi sensitif akun pengguna.
+
+### 4. Uji Validasi Klien
 ![Bypass Validasi Klien](../../assets/modul_5/Bypass_klien.png)
-* Form dikirim dengan validasi browser dimatikan (`noValidate`). Server Action tetap berhasil memvalidasi dan memunculkan galat per-kolom dari server.
 
-### 5. Uji Validasi Semantik
+* **Penjelasan:** Pengujian dilakukan dengan sengaja menonaktifkan validasi bawaan peramban menggunakan atribut `noValidate` pada tag `<form>`. Ketika formulir dikirimkan dengan input yang tidak memenuhi syarat, permintaan langsung diteruskan ke Server Action. Server Action berhasil memvalidasi seluruh data menggunakan Zod dan mengembalikan pesan galat *field-level* ke antarmuka klien, membuktikan bahwa keamanan sistem tidak bergantung pada validasi sisi klien saja.
+
+### 5. Uji Validasi Semantik (Pencegahan Duplikasi Judul Item)
 ![Validasi Semantik](../../assets/modul_5/Validasi_semantik.png)
-* Input nama kamar yang sudah terdaftar ditolak Server Action dengan pesan: *"Judul sudah dipakai item lain."*.
 
----
+* **Penjelasan:** Pengujian dilakukan dengan menginput judul item kamar kos yang sudah ada sebelumnya di dalam database PostgreSQL (`"Kost Griya Asri Deluxe"`). Validasi bentuk Zod terpenuhi, namun Server Action melakukan pemeriksaan semantik ke database dan menolak operasi dengan pesan *"Judul sudah dipakai item lain."*.
 
 ## 4. Session dan Cookie
 
-### Atribut Cookie Sesi (`lib/session.ts`)
-* `name`: `sesi` (Identifier cookie).
-* `value`: `crypto.randomUUID()` (Opaque token acak).
-* `path`: `/` (Berlaku di seluruh rute).
-* `httpOnly`: `false` (Khusus pengujian praktikum agar dapat dimanipulasi di DevTools).
-* `sameSite`: `'lax'` (Mencegah serangan CSRF).
-* `maxAge`: `86400` (Kedaluwarsa otomatis dalam 24 jam).
+### Atribut Cookie Sesi dan Alasan Pemilihannya
 
-### Tangkapan Layar DevTools
-* **Panel Application:**  
-  ![Panel Application Cookies](../../assets/modul_5/Cookie_palsu.png)  
-  *(Cookie sesi tersimpan dengan format UUID acak).*
-* **Header Set-Cookie:**  
-  ![Header Set-Cookie](../../assets/modul_5/Bukti_logout.png)  
-  *(Header HTTP `Set-Cookie` terkirim dari server).*
+Konfigurasi cookie sesi pada `lib/session.ts`:
 
-### Hasil Uji Sesi
-1. **Cookie Palsu:** Nilai cookie diubah manual ke `sesi-palsu-12345`. Server Action menolak dengan galat *"Silakan masuk terlebih dahulu."* karena token tidak ada di memori server.
-2. **Logout:** Tombol logout memanggil `hapusSesiAction()`, menghapus UUID dari memori server dan menghapus cookie peramban.
-3. **Cookie Lama:** Menggunakan kembali nilai UUID lama setelah logout ditolak karena sesi di server sudah dihapus permanen.
+| Atribut Cookie | Nilai Konfigurasi | Alasan Pemilihan & Aspek Keamanan |
+| :--- | :--- | :--- |
+| **Name** | `sesi` | Nama identifier cookie sesi aplikasi kos. |
+| **Value** | UUID v4 (`crypto.randomUUID()`) | Nilai token acak berentropi tinggi, tidak dapat ditebak (*unpredictable*). |
+| **Path** | `/` | Memastikan cookie sesi terkirim pada seluruh rute aplikasi (`/katalog`, `/rooms`, `/dashboard`). |
+| **HttpOnly** | `false` | **Khusus Skenario Pengujian Praktikum:** Memungkinkan inspeksi dan manipulasi cookie di panel Application browser DevTools untuk pengujian injeksi cookie palsu. *(Pada mode produksi, diwajibkan `true` untuk mencegah pencurian token melalui serangan XSS).* |
+| **SameSite** | `lax` | Melindungi aplikasi dari serangan CSRF (*Cross-Site Request Forgery*) pada mutasi lintas domain, sembari tetap menyertakan cookie saat navigasi tautan biasa. |
+| **Max-Age** | `86400` (24 Jam) | Membatasi masa aktif sesi pengguna agar sesi kedaluwarsa secara otomatis dalam jangka waktu satu hari. |
 
----
+### Tangkapan Layar Panel Application dan Header Set-Cookie
+
+#### 1. Panel Application (DevTools)
+![Panel Application Cookies](../../assets/modul_5/Cookie_palsu.png)  
+*Keterangan: Nilai cookie sesi ditampilkan di browser DevTools panel Application (nilai token disamarkan demi keamanan).*
+
+#### 2. Header Respons Set-Cookie (Network Tab)
+![Header Set-Cookie Network Tab](../../assets/modul_5/Bukti_logout.png)  
+*Keterangan: Header respons HTTP `Set-Cookie: sesi=...; Path=/; Max-Age=86400; SameSite=lax` saat proses sesi aktif atau dihapus.*
+
+### Hasil Uji Skenario Sesi
+
+#### 1. Pengujian Cookie Palsu (Injeksi Token Ilegal)
+![Pengujian Cookie Palsu](../../assets/modul_5/Cookie_palsu.png)
+
+* **Penjelasan:** Pengujian dilakukan dengan memanipulasi nilai cookie `sesi` di DevTools menjadi `sesi-palsu-12345`. Ketika melakukan navigasi rute, `proxy.ts` meloloskan karena hanya mengecek keberadaan kunci. Namun saat formulir disubmit ke Server Action, fungsi `bacaSesi()` memeriksa map sesi server dan menemukan bahwa token tidak terdaftar, sehingga Server Action menolak mutasi dengan pesan *"Silakan masuk terlebih dahulu."*.
+
+#### 2. Pengujian Logout
+![Bukti Logout](../../assets/modul_5/Bukti_logout.png)
+
+* **Penjelasan:** Pengujian dilakukan dengan menekan tombol "Keluar / Logout". Server Action `hapusSesiAction()` mengeksekusi penghapusan sesi dari penyimpanan memori server (`serverSessionMap.delete()`) dan menghapus cookie dari peramban (`cookieStore.delete('sesi')`). Pengguna langsung dialihkan ke halaman utama/login.
+
+#### 3. Pengujian Cookie Lama Setelah Logout (*Session Replay Prevention*)
+![Pengujian Cookie_lama](../../assets/modul_5/Pengujian_cookie_lama.png)
+
+* **Penjelasan:** Pengujian dilakukan dengan menyalin UUID sesi sebelum logout, lalu menyuntikkan kembali nilai UUID lama tersebut ke dalam cookie browser setelah logout dilakukan. Ketika mencoba melakukan submit formulir, Server Action menolak permintaan dengan pesan *"Silakan masuk terlebih dahulu."* karena token tersebut sudah permanen dihapus dari memori server saat proses logout.
 
 ## 5. Keputusan Teknis
 
-### Session di Server vs Token di Cookie
-* **Revokasi Instan:** Sesi di server dapat dicabut seketika saat logout, berbeda dengan JWT stateless yang tetap aktif hingga kedaluwarsa.
-* **Minimasi Data:** Cookie hanya membawa UUID acak tanpa mengekspos payload data sensitif pengguna.
+### Alasan Pola Session di Server dibanding Token di Cookie
 
-### Peran `proxy.ts` vs Pemeriksaan di Server Action
-* **`proxy.ts` (Edge Middleware):** Penjaga pintu optimistik (*fast-fail*). Hanya mengecek keberadaan kunci cookie `sesi` tanpa kueri database lambat.
-* **Server Action:** Otoritas mutlak (*defense-in-depth*). Memvalidasi keaslian UUID ke state server dan memeriksa izin akses sebelum mutasi.
-
----
-
-## 6. Kendala dan Penyelesaian
-
-* **Sesi In-Memory Terhapus saat HMR:**
-  * *Kendala & Sebab:* Kompilasi ulang Next.js dev server mereset variabel modul memori.
-  * *Solusi:* Menyimpan referensi map sesi pada objek global `globalThis.serverSessionMap`.
-* **Input Angka Terbaca String oleh Zod:**
-  * *Kendala & Sebab:* Elemen `<input>` selalu mengembalikan string.
-  * *Solusi:* Memakai fungsi transform `z.preprocess()` untuk konversi aman ke tipe `number`.
-* **Validasi Browser Menghalangi Uji Server:**
-  * *Kendala & Sebab:* Tooltip bawaan HTML memblokir submit form.
-  * *Solusi:* Menyematkan atribut `noValidate` pada tag `<form>`.
+1. **Pencabutan Akses Seketika (*Instant Revocation*):**  
+   Pada token tanpa status di sisi klien (stateless JWT di cookie), token akan tetap berlaku hingga masa kedaluwarsanya habis kecuali dibuat sistem *blacklist* terpisah. Pola *Server-side Session* (UUID acak di cookie + *store* di server) memberikan kendali mutlak kepada server untuk membatalkan akses secara instan saat logout atau ketika ada indikasi pembobolan akun.
+2. **Prinsip Minimasi Data (*Data Minimization*):**  
+   Cookie peramban hanya menyimpan pengidentifikasi opaque acak tanpa membawa informasi pribadi (seperti email, role, atau id pengguna), sehingga kebocoran cookie tidak langsung membocorkan identitas pengguna.
 
 ---
+
+### Batas Peran `proxy.ts` dibanding Pemeriksaan di Server Action
+
+* **Peran `proxy.ts` (Next.js Middleware/Proxy Boundary):**
+  * Beroperasi di level terluar (*edge network layer*) sebelum request mencapai komponen server atau Server Action.
+  * Bersifat **optimistik dan cepat (*fast-fail*)**: hanya memeriksa apakah kunci cookie `sesi` eksis. Jika tidak ada sama sekali, pengguna langsung dialihkan ke rute `/masuk`.
+  * **Tidak** melakukan kueri basis data atau akses memori yang lambat guna menjaga latensi navigasi tetap instan.
+* **Peran Pemeriksaan di Server Action:**
+  * Beroperasi sebagai **benteng pertahanan mutlak (*defense in depth*)** di level aplikasi.
+  * Melakukan verifikasi kriptografis dan memeriksa apakah UUID yang dibawa cookie benar-benar terdaftar dan aktif di `serverSessionMap`.
+  * Menjamin bahwa manipulasi cookie palsu di level proxy tetap akan ditolak sebelum menyentuh logika mutasi data.
+
+## 6. Kendala dan Penyelesaian 
+
+**1. Ketidakcocokan Tipe Data Masukan Numerik pada Skema Zod:**
+  * **Kendala yang Dihadapi:** Input harga sewa dari elemen form memicu kegagalan validasi Zod karena ditolak sebagai tipe string padahal skema mengharapkan tipe data angka (*expected number, received string*).
+  * **Akar Masalah:** Semua elemen HTML `<input>` secara default selalu mengembalikan nilai bertipe data teks (string) ke event handler JavaScript.
+  * **Solusi dan Penyelesaian:** Memanfaatkan fungsi transformasi `z.preprocess()` pada skema Zod untuk membersihkan karakter non-digit dan mengubah tipe string menjadi tipe `number` secara aman sebelum batasan nominal minimum dan maksimum dievaluasi.
 
 ## 7. Catatan Pemanfaatan AI
 
 * **Alat:** Antigravity (Gemini 3.8 Flash)
 * **Perintah Utama:**
-  1. Merancang arsitektur keamanan *defense-in-depth* (pemisahan boundary `proxy.ts` dan validasi mutlak `actions/session.ts`).
-  2. Mengatasi reset penyimpanan memori sesi akibat Hot Module Replacement (HMR) menggunakan `globalThis`.
-  3. Menyusun alur validasi Server Action berlapis (sanitasi Zod, pencegahan bypass `noValidate`, dan validasi semantik Prisma).
-* **Bagian yang Digunakan:** `lib/session.ts`, `actions/session.ts`, `proxy.ts`, `lib/validations/room.ts`.
+  1. Merancang arsitektur keamanan *defense-in-depth* pemisahan boundary `proxy.ts` dan validasi mutlak `actions/session.ts`.
+  2. Mengatasi reset penyimpanan memori sesi akibat Hot Module Replacement menggunakan `globalThis`.
+  3. Menyusun alur validasi Server Action berlapis sanitasi Zod, pencegahan bypass `noValidate`, dan validasi semantik Prisma.
+* **Bagian yang Digunakan:** `lib/session.ts`, `actions/session.ts`, `proxy.ts`, `lib/validations/room.ts`. 
 * **Cara Memverifikasi:**
   1. Uji injeksi cookie palsu di DevTools (Server Action berhasil menolak).
   2. Uji *replay attack* dengan token lama pasca logout (berhasil ditolak).
