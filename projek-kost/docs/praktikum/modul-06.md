@@ -1,8 +1,7 @@
-# LAPORAN RESMI PRAKTIKUM PENGEMBANGAN APLIKASI WEB
-## MODUL 6: PENGELOLAAN DATABASE RELASIONAL DENGAN PRISMA ORM, MIGRASI, DAN TRANSAKSI
+## MODUL 6: PostgreSQL dan Prisma ORM
 
-- **Nama Mahasiswa:** Razqa Azaki
-- **NIM:** 105224046
+**Nama Mahasiswa:** Razqa Azaki
+**NIM:** 105224046
 
 ## 1. Rancangan Data (ERD)
 Aplikasi R-Stay mengimplementasikan relasi relasional induk-anak (*Parent-Child Relationship*) antara entitas master **Kamar Kos (`Room`)** dan entitas transaksi **Reservasi Sewa (`Reservation`)** dengan kardinalitas **1:N (One-to-Many)**. Satu unit kamar kos dapat memiliki banyak riwayat pengajuan reservasi, namun setiap transaksi reservasi hanya merujuk pada tepat satu kamar kos.
@@ -27,10 +26,8 @@ Dalam skema Prisma R-Stay, relasi antara `Reservation` dan `Room` dikonfigurasi 
 room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 ```
 **Alasan Pemilihan Aturan `onDelete: Cascade`:**
-1. **Menjaga Integritas Referensial (*Referential Integrity*):** Ketika kamar kos atau pengguna dihapus, data transaksi reservasi terkait otomatis ikut dibersihkan oleh PostgreSQL agar tidak ada data menggantung (*orphan records*) yang menunjuk ke ID yang sudah tiada.
+1. **Menjaga Integritas Referensial (*Referential Integrity*):** Ketika kamar kos atau pengguna dihapus, data transaksi reservasi terkait otomatis ikut dibersihkan oleh PostgreSQL agar tidak meninggalkan data menggantung atau *error* penunjuk ID yang sudah hilang.
 2. **Dibandingkan Aturan `RESTRICT`:** Aturan `Restrict` melarang penghapusan kamar kos jika masih ada transaksi reservasi yang terhubung (disimulasikan pada Bab 5 untuk membuktikan penolakan otomatis database).
-
----
 
 ## 2. Skema dan Migrasi
 
@@ -117,16 +114,9 @@ model Penghuni {
 
 ### B. Daftar Folder Migrasi dan Potongan `migration.sql`
 
-#### 1. Diagram Alur Kerja Migrasi Prisma (Migration Lifecycle)
-```mermaid
-flowchart TD
-    A["1. Sunting Model di 'prisma/schema.prisma'"] --> B["2. Eksekusi CLI: 'npx prisma migrate dev --name init_milestone2'"]
-    B --> C["3. Prisma membandingkan skema dengan DB state saat ini"]
-    C --> D["4. Prisma men-generate folder migrasi bertanda waktu:\n'prisma/migrations/20261025183624_init_milestone2/'"]
-    D --> E["5. Prisma menyusun berkas DDL SQL:\n'migration.sql'"]
-    E --> F["6. DDL dieksekusi ke PostgreSQL & dicatat di tabel '_prisma_migrations'"]
-    F --> G["7. Prisma Client otomatis di-generate ulang ('@prisma/client')"]
-```
+#### 1. Diagram Alur Kerja Migrasi Prisma
+
+![Diagram](../../assets/modul_6/Diagram_alur.png)
 
 #### 2. Struktur Hierarki Folder Prisma
 ```text
@@ -145,11 +135,11 @@ projek-kost/
 └── .env                                            # Variabel lingkungan berisi DATABASE_URL
 ```
 
-> **Penjelasan Penamaan Folder Migrasi:**
-> Nama folder `20261025183624_init_milestone2` tersusun atas:
-> - `20261025`: Tanggal pembuatan (Tahun 2026, Bulan 10, Tanggal 25)
-> - `183624`: Waktu pembuatan (Pukul 18:36:24 WIB)
-> - `init_milestone2`: Label nama migrasi yang dimasukkan saat menjalankan `prisma migrate dev`
+**Penjelasan Penamaan Folder Migrasi:**
+Nama folder `20261025183624_init_milestone2` tersusun atas:
+- `20261025`: Tanggal pembuatan (Tahun 2026, Bulan 10, Tanggal 25)
+- `183624`: Waktu pembuatan (Pukul 18:36:24 WIB)
+- `init_milestone2`: Label nama migrasi yang dimasukkan saat menjalankan `prisma migrate dev`
 
 #### 3. Potongan DDL SQL Resmi dari Migrasi Prisma (`migration.sql`)
 ```sql
@@ -250,8 +240,6 @@ Foreign-key constraints:
     "Reservation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE ON UPDATE CASCADE
 ```
 
----
-
 ## 3. Seed dan Prisma Client
 
 ### A. Keluaran `npx prisma db seed` (Pengujian Idempoten)
@@ -279,11 +267,9 @@ The seed command has been executed.
 *Hasil:* Jumlah baris tetap tepat 6 kamar kos, 1 user sintetis, dan 1 reservasi. Nilai tidak bertambah menjadi 12 atau 2, membuktikan idempotensi 100% terpenuhi.
 
 ### B. Alasan `seed.ts` Tidak Mengimpor `lib/prisma.ts`
-1. **Dijalankan di Terminal (Bukan di Website):** Skrip `seed.ts` dijalankan langsung lewat terminal (Node.js/`ts-node`) sebagai program sekali jalan, bukan di dalam alur kerja website Next.js.
-2. **`lib/prisma.ts` Dibuat Khusus untuk Fitur Reload Next.js:** Berkas `lib/prisma.ts` menyimpan koneksi di memori global (`globalThis`) agar saat kita mengubah kode dan Next.js me-reload halaman (*Fast Refresh*), koneksi database tidak dibuat berulang-ulang sampai kuota database penuh. Skrip seed tidak memerlukan trik ini karena hanya berjalan sekali lalu langsung selesai.
-3. **Koneksi Terminal Harus Ditutup Selesai (`$disconnect()`):** Skrip seed wajib memutuskan koneksi database secara manual menggunakan `await prisma.$disconnect()` agar terminal tahu tugasnya sudah beres dan bisa keluar (exit). Jika mengimpor dari `lib/prisma.ts`, koneksinya akan terus menggantung sehingga terminal tidak mau berhenti (*stuck/hang*).
-
----
+1. **Jalan di Terminal, Bukan di Website:** Skrip `seed.ts` dijalankan langsung lewat terminal (`npx prisma db seed`) sebagai program sekali jalan, bukan di dalam alur halaman website Next.js.
+2. **`lib/prisma.ts` Dibuat Khusus untuk Fitur Reload Next.js:** Berkas `lib/prisma.ts` menyimpan koneksi di memori global (`globalThis`) supaya saat kita lagi ngoding dan halaman web me-reload otomatis (*Fast Refresh*), koneksi database tidak dibuat berulang kali sampai kuota database habis. Skrip seed tidak butuh trik ini karena hanya jalan sekali lalu selesai.
+3. **Koneksi Terminal Harus Ditutup Sendiri (`$disconnect()`):** Skrip seed wajib memutus koneksi database secara manual menggunakan perintah `await prisma.$disconnect()` agar terminal tahu tugasnya sudah beres dan langsung berhenti (*exit code 0*). Kalau memakai koneksi dari `lib/prisma.ts`, koneksinya akan terus menggantung dan terminal tidak mau selesai (*stuck/hang*).
 
 ## 4. Operasi CRUD
 
@@ -291,26 +277,24 @@ The seed command has been executed.
 | Entitas | Aksi / Halaman UI | Operasi & Metode Prisma Client | Penanganan Galat & Validasi |
 | :--- | :--- | :--- | :--- |
 | **Room** | **CREATE**: Tambah Kamar Kos Baru | `prisma.room.create({ data: {...} })` | Menangkap galat **P2002** jika slug duplikat; validasi Zod untuk harga positif & tipe valid. |
-| **Room** | **READ**: Katalog Kamar (`/rooms`, `/`) | `prisma.room.findMany({ orderBy: {...} })` | Menangani *empty array* jika belum ada kamar; penanganan galat koneksi database. |
-| **Room** | **READ DETAIL**: Detail Kos (`/rooms/[id]`) | `prisma.room.findUnique({ where: { slug } })` | Menangani kasus `null` dengan memanggil `notFound()` Next.js. |
-| **Room** | **UPDATE**: Edit Info Kamar | `prisma.room.update({ where: { id }, data })` | Menangkap galat **P2025** jika kamar tidak ditemukan; validasi field terisi. |
-| **Room** | **DELETE**: Hapus Unit Kos | `prisma.room.delete({ where: { id } })` | Menangkap **P2025** jika record sudah terhapus; mekanisme *cascade delete* ke reservasi. |
-| **Reservation** | **CREATE**: Form Booking Kamar (`/booking`) | `prisma.reservation.create({ data: {...} })` | Validasi Zod: tanggal masa depan, durasi 1–12 bulan, nomor WhatsApp 10–14 digit. |
-| **Reservation** | **READ**: Riwayat Booking Saya (`/profile`) | `prisma.reservation.findMany({ where: { userId } })` | Filter ReBAC berbasis ID pengguna aktif. |
-| **Reservation** | **UPDATE**: Konfirmasi Status | `prisma.reservation.update({ where: { id }, data: { status } })` | Menangani galat **P2025** jika ID reservasi palsu/dihapus. |
-| **Reservation** | **DELETE**: Batalkan Pengajuan | `prisma.reservation.delete({ where: { id } })` | Verifikasi kepemilikan transaksi sebelum penghapusan. |
+| **Room** | **READ**: Katalog Kamar (rooms, /) | prisma.room.findMany({ orderBy: {...} }) | Menangani *empty array* jika belum ada kamar; penanganan galat koneksi database. |
+| **Room** | **READ DETAIL**: Detail Kos (/rooms/[id]) | `prisma.room.findUnique({ where: { slug } }) | Menangani kasus `null` dengan memanggil notFound() Next.js. |
+| **Room** | **UPDATE**: Edit Info Kamar | prisma.room.update({ where: { id }, data }) | Menangkap galat **P2025** jika kamar tidak ditemukan; validasi field terisi. |
+| **Room** | **DELETE**: Hapus Unit Kos | prisma.room.delete({ where: { id } }) | Menangkap **P2025** jika record sudah terhapus; mekanisme *cascade delete* ke reservasi. |
+| **Reservation** | **CREATE**: Form Booking Kamar (/booking) | prisma.reservation.create({ data: {...} }) | Validasi Zod: tanggal masa depan, durasi 1–12 bulan, nomor WhatsApp 10–14 digit. |
+| **Reservation** | **READ**: Riwayat Booking Saya (/profile) | prisma.reservation.findMany({ where: { userId } }) | Filter ReBAC berbasis ID pengguna aktif. |
+| **Reservation** | **UPDATE**: Konfirmasi Status | prisma.reservation.update({ where: { id }, data: { status } }) | Menangani galat **P2025** jika ID reservasi palsu/dihapus. |
+| **Reservation** | **DELETE**: Batalkan Pengajuan | `prisma.reservation.delete({ where: { id } }) | Verifikasi kepemilikan transaksi sebelum penghapusan. |
 
 ### B. Penanganan dan Pesan Galat Prisma P2002 & P2025
 - **Galat P2002 (Unique Constraint Violation):**
   - *Penyebab:* Pengguna mencoba membuat kamar baru dengan slug yang sudah terdaftar, atau mendaftar akun dengan email yang sudah ada.
   - *Pesan Galat Asli Prisma:* `Unique constraint failed on the fields: ('slug')`
-  - *Pesan Ramah di Formulir UI:* `⚠️ Gagal Menyimpan: Properti kos dengan nama / slug ini sudah terdaftar di sistem. Harap gunakan nama lain.`
+  - *Pesan Ramah di Formulir UI:* Gagal Menyimpan: Properti kos dengan nama / slug ini sudah terdaftar di sistem. Harap gunakan nama lain.
 - **Galat P2025 (Record Not Found Violation):**
   - *Penyebab:* Pengguna mencoba menghapus atau memperbarui status pemesanan yang ID-nya sudah dihapus oleh pengguna lain atau sistem.
-  - *Pesan Galat Asli Prisma:* `An operation failed because it depends on one or more records that were required but not found. Record to update not found.`
-  - *Pesan Ramah di Formulir UI:* `⚠️ Data Tidak Ditemukan: Kamar kos atau reservasi yang Anda tuju sudah tidak tersedia atau telah dihapus.`
-
----
+  - *Pesan Galat Asli Prisma:* An operation failed because it depends on one or more records that were required but not found. Record to update not found.
+  - *Pesan Ramah di Formulir UI:* Data Tidak Ditemukan: Kamar kos atau reservasi yang Anda tuju sudah tidak tersedia atau telah dihapus.
 
 ## 5. Transaksi dan Rollback
 
@@ -350,7 +334,7 @@ await prisma.$transaction(async (tx) => {
 
   // 3. Simulasi Galat Logika / Kegagalan Gateway Pembayaran
   if (simulasikanError) {
-    throw new Error('SIMULASI_GAGAL: Gangguan jaringan perbankan saat pemotongan saldo.');
+    throw new Error(SIMULASI_GAGAL: Gangguan jaringan perbankan saat pemotongan saldo.);
   }
 
   return reservation;
@@ -359,16 +343,14 @@ await prisma.$transaction(async (tx) => {
 
 **Bukti Status Database Sebelum dan Sesudah Pengujian Rollback:**
 - **Kondisi Awal (Sebelum Uji):**
-  - Jumlah Reservasi di database: `1`
-  - Status Kamar `Kost Ajolie Executive`: `isAvailable = true`
+  - Jumlah Reservasi di database: 1
+  - Status Kamar Kost Ajolie Executive: isAvailable = true`
 - **Eksekusi Uji Transaksi dengan Pemicu Galat:**
-  - Fungsi melempar exception: `'SIMULASI_GAGAL: Gangguan jaringan perbankan saat pemotongan saldo.'`
+  - Fungsi melempar exception: SIMULASI_GAGAL: Gangguan jaringan perbankan saat pemotongan saldo.
 - **Kondisi Akhir (Sesudah Uji - Bukti Rollback Berhasil):**
-  - Jumlah Reservasi di database: `1` *(Data reservasi baru otomatis dibatalkan/dihapus kembali)*
-  - Status Kamar `Kost Ajolie Executive`: `isAvailable = true` *(Status kamar tidak jadi diubah ke false)*
+  - Jumlah Reservasi di database: 1 *(Data reservasi baru otomatis dibatalkan/dihapus kembali)*
+  - Status Kamar Kost Ajolie Executive: isAvailable = true *(Status kamar tidak jadi diubah ke false)*
   - **Kesimpulan:** Seluruh operasi yang sempat berjalan di dalam blok `$transaction` ditarik kembali (*rolled back*) secara sempurna oleh PostgreSQL (Prinsip ACID: *Atomicity*).
-
----
 
 ## 6. Skenario Pengujian
 
@@ -376,69 +358,37 @@ Tabel berikut mendokumentasikan 10 skenario pengujian fungsionalitas database, m
 
 | No | Modul / Fitur | Masukan / Aksi Uji | Hasil yang Diharapkan | Hasil Aktual | Status |
 | :---: | :--- | :--- | :--- | :--- | :---: |
-| **1** | Migrasi Database | Eksekusi `npx prisma migrate dev` | Tabel `Room` dan `Reservation` terbentuk di PostgreSQL beserta indeks & foreign key. | Tabel, primary key, dan constraint terbentuk 100% sesuai skema. | **LULUS** |
-| **2** | Indeks Unik Slug | Percobaan insert 2 kamar dengan `slug: 'kost-001'` | Sistem menolak baris kedua dan menghasilkan kode galat **P2002**. | Ditangkap oleh blok try-catch, galat P2002 berhasil terdeteksi. | **LULUS** |
-| **3** | Idempoten Seeding | Menjalankan `npx prisma db seed` sebanyak dua kali berturut-turut | Data tidak menduplikasi, jumlah kamar tetap 6 unit kos. | Output count kamar tetap 6, tidak terjadi duplikasi rekaman. | **LULUS** |
-| **4** | Pembuatan Data (Create) | Menjalankan `registerUserAction` dengan data valid | User baru tersimpan di tabel `User` PostgreSQL dan mengembalikan record ID. | Record user baru berhasil di-insert ke database relasional. | **LULUS** |
-| **5** | Pembacaan Data (Read) | Menjalankan `getRoomsAction()` di halaman Beranda | Seluruh 6 kamar kos sintetis termuat secara dinamis dari database. | Tampil 6 kartu kos lengkap dengan nama, harga, dan fasilitas. | **LULUS** |
-| **6** | Relasi Kunci Asing | Insert `Reservation` dengan `roomId` acak yang tidak ada di database | PostgreSQL menolak operasi dengan galat Foreign Key Constraint. | Prisma melempar error referensial, database terlindungi dari data korup. | **LULUS** |
+| **1** | Migrasi Database | Eksekusi npx prisma migrate dev | Tabel Room dan Reservation terbentuk di PostgreSQL beserta indeks & foreign key. | Tabel, primary key, dan constraint terbentuk 100% sesuai skema. | **LULUS** |
+| **2** | Indeks Unik Slug | Percobaan insert 2 kamar dengan slug: kost-001 | Sistem menolak baris kedua dan menghasilkan kode galat **P2002**. | Ditangkap oleh blok try-catch, galat P2002 berhasil terdeteksi. | **LULUS** |
+| **3** | Idempoten Seeding | Menjalankan npx prisma db seed sebanyak dua kali berturut-turut | Data tidak menduplikasi, jumlah kamar tetap 6 unit kos. | Output count kamar tetap 6, tidak terjadi duplikasi rekaman. | **LULUS** |
+| **4** | Pembuatan Data (Create) | Menjalankan registerUserAction dengan data valid | User baru tersimpan di tabel User PostgreSQL dan mengembalikan record ID. | Record user baru berhasil di-insert ke database relasional. | **LULUS** |
+| **5** | Pembacaan Data (Read) | Menjalankan getRoomsAction() di halaman Beranda | Seluruh 6 kamar kos sintetis termuat secara dinamis dari database. | Tampil 6 kartu kos lengkap dengan nama, harga, dan fasilitas. | **LULUS** |
+| **6** | Relasi Kunci Asing | Insert Reservation dengan `roomId` acak yang tidak ada di database | PostgreSQL menolak operasi dengan galat Foreign Key Constraint. | Prisma melempar error referensial, database terlindungi dari data korup. | **LULUS** |
 | **7** | Penanganan Galat P2025 | Update kamar kos dengan ID fiktif (`clx_invalid_999`) | Prisma melempar kode **P2025** (*Record not found*). | Ditangkap dan diubah menjadi pesan *"Data tidak ditemukan"*. | **LULUS** |
 | **8** | Uji Atomisitas Transaksi | Menjalankan booking kamar dengan pemicu error buatan | Perubahan data dibatalkan penuh (*automatic rollback*). | Reservasi tidak masuk ke DB dan status kamar tetap tidak berubah. | **LULUS** |
 | **9** | Penghapusan Cascade | Menghapus 1 kamar kos yang memiliki transaksi reservasi | Kamar dan seluruh riwayat reservasi terkait ikut terhapus bersih. | Rekaman anak otomatis terhapus tanpa error *orphan record*. | **LULUS** |
 | **10** | Sanitasi Sisi Server | Input durasi sewa negatif (`-5 bulan`) pada Server Action | Skema validasi Zod memblokir input sebelum menyentuh Prisma. | Permintaan ditolak dengan pesan *"Durasi minimal 1 bulan"*. | **LULUS** |
 
-**Persentase Kelulusan Pengujian:** $\frac{10}{10} \times 100\% = \mathbf{100\%}$
-
----
-
 ## 7. Kendala dan Penyelesaian
 
-1. **Kendala 1: Perbedaan Skema Database Antara Cloud Neon dan PostgreSQL Lokal**
-   - *Masalah:* Konfigurasi awal `DATABASE_URL` sempat mengarah ke Neon Cloud dengan pooling URL dan kolom `latitude`/`longitude`, sehingga saat dialihkan ke database PostgreSQL lokal (`localhost:5433`), eksekusi Prisma melempar galat `P2022: Column latitude does not exist`.
-   - *Penyelesaian:* Menjalankan introspeksi database relasional melalui perintah `npx prisma db pull --print`, menghapus kolom usang dari `schema.prisma`, serta menjalankan `npx prisma generate` untuk menyelaraskan Prisma Client lokal.
-
-2. **Kendala 2: Galat Duplikasi Data Saat Menjalankan Seeding Ulang**
+1. **Galat Duplikasi Data Saat Menjalankan Seeding Ulang**
    - *Masalah:* Penggunaan metode `prisma.room.create()` pada `seed.ts` menyebabkan galat `P2002 (Unique constraint failed on slug)` saat seed dieksekusi lebih dari satu kali.
    - *Penyelesaian:* Mengubah seluruh logika penyisipan data pada `prisma/seed.ts` menggunakan metode `prisma.room.upsert()` dengan kunci pencarian `where: { slug: r.slug }` dan `prisma.user.upsert()`. Dengan cara ini, data yang sudah ada akan diperbarui (*update*), dan data yang belum ada akan dibuat (*create*), menjamin sifat idempoten.
 
-3. **Kendala 3: Tipe Relasi 3NF Antara User dan Reservation pada Server Actions**
+2. **Tipe Relasi 3NF Antara User dan Reservation pada Server Actions**
    - *Masalah:* Formulir booking awalnya menyimpan `fullName` dan `email` langsung ke tabel `Reservation` (struktur denormalisasi v0.1), namun skema 3NF v0.2 mewajibkan relasi `userId` ke tabel `User`.
    - *Penyelesaian:* Memperbarui Server Action booking untuk mencari atau membuat record `User` terlebih dahulu via `upsert`, kemudian menghubungkan `userId` pada transaksi `Reservation`, menjaga normalisasi database sesuai kaidah 3NF.
 
-4. **Kendala 4: Deteksi dan Validasi Dokumen Fisik E-KTP pada Alur Registrasi**
-   - *Masalah:* Formulir pendaftaran sebelumnya sempat menerima sembarang berkas gambar (seperti gambar diagram "Peta Matriks") dan mengekstrak teks acak sebagai nama calon penyewa.
-   - *Penyelesaian:* Mengintegrasikan filter identitas e-KYC dan skema validasi Zod `registerSchema` pada `lib/validations/auth.ts` dan Server Action `actions/auth.ts` yang menolak berkas non-identitas, mewajibkan dokumen fisik E-KTP resmi Republik Indonesia, serta mengunci NIK 16 digit resmi secara otomatis ke akun penyewa.
-
----
-
 ## 8. Catatan Pemanfaatan AI
 
-Sesuai ketentuan kejujuran akademik praktikum, berikut adalah dokumentasi pemanfaatan kecerdasan buatan (*Artificial Intelligence*) dalam pengerjaan Modul 6:
-
 - **Alat Bantu AI:** Antigravity AI (Pair Programming Assistant berbasis DeepMind Gemini 2.5).
-- **Rangkaian Perintah Utama yang Saling Berkaitan (Prompting):**
-  1. **Perancangan Skema Awal:**  
-     *"Bagaimana cara menulis skema database relasional di Prisma untuk aplikasi reservasi kos yang memenuhi kaidah 3NF dengan relasi User, Room, Reservation, dan Penghuni?"*
-  2. **Migrasi & Penyelarasan Database Lokal:**  
-     *"Bagaimana cara mengalihkan koneksi DATABASE_URL dari Neon Cloud ke PostgreSQL lokal dan menjalankan migrasinya via npx prisma migrate dev?"*
-  3. **Pembuatan Seeding Idempoten:**  
-     *"Kenapa saat skrip seed dijalankan dua kali terjadi error duplikasi data, dan bagaimana cara membuat seed yang idempoten menggunakan metode upsert?"*
-  4. **Arsitektur Pemisahan Instance Prisma:**  
-     *"Jelaskan alasan teknis mengapa berkas seed.ts terminal tidak boleh mengimpor instance PrismaClient dari lib/prisma.ts milik Next.js."*
-  5. **Penanganan Galat CRUD Prisma:**  
-     *"Bagaimana cara menangkap galat Prisma P2002 (Unique constraint) dan P2025 (Record not found) pada Server Action agar muncul sebagai notifikasi ramah di antarmuka web?"*
-  6. **Simulasi Transaksi Atomik & Rollback:**  
-     *"Bagaimana membuat simulasi transaksi atomik menggunakan prisma.$transaction dengan skenario rollback saat pemrosesan booking mengalami gangguan perbankan?"*
-  7. **Validasi e-KYC KTP Menggunakan Zod:**  
-     *"Bagaimana cara membuat skema validasi Zod untuk unggah E-KTP agar foto non-identitas (seperti peta matriks, flowchart, diagram) otomatis ditolak dan NIK 16 digit terverifikasi resmi?"*
-- **Bagian yang Digunakan:**
-  - Penulisan skema relasional 3NF pada `prisma/schema.prisma`.
-  - Pembuatan skrip `prisma/seed.ts` idempoten dengan 6 data kos sintetis.
-  - Implementasi Server Actions (`actions/auth.ts`, `actions/booking.ts`) beserta penanganan error P2002 dan P2025.
-  - Penyusunan skema validasi Zod pada `lib/validations/auth.ts` untuk verifikasi dokumen E-KTP.
-  - Perancangan matriks 10 skenario pengujian database Modul 6.
+- **Perintah Utama (Prompting):**
+  1. Pembuatan Seeding Idempoten: Kenapa saat skrip seed dijalankan dua kali terjadi error duplikasi data, dan bagaimana cara membuat seed yang idempoten menggunakan metode upsert?
+  2. Arsitektur Pemisahan Instance Prisma: Jelaskan alasan teknis mengapa berkas seed.ts terminal tidak boleh mengimpor instance PrismaClient dari lib/prisma.ts milik Next.js.
+  3. Simulasi Transaksi Atomik & Rollback: Bagaimana membuat simulasi transaksi atomik menggunakan prisma.$transaction dengan skenario rollback saat pemrosesan booking mengalami gangguan perbankan?
+
 - **Cara Memverifikasi Hasil Kerja AI:**
-  - Menjalankan migrasi `npx prisma migrate dev` dan menginspeksi tabel langsung di PostgreSQL lewat terminal `psql` (`\d "Room"` dan `\d "Reservation"`).
-  - Menjalankan `npx prisma db seed` sebanyak 2 kali berturut-turut untuk membuktikan jumlah baris tetap 6 (idempoten).
-  - Menguji formulir registrasi dan booking langsung di peramban `http://localhost:3000` (menguji penolakan berkas non-KTP dan duplikasi email).
-  - Memverifikasi konsistensi kode dan tipe statis TypeScript melalui `npx tsc --noEmit` yang lolos tanpa galat (*exit code 0*).
+  - Menjalankan perintah migrasi `npx prisma migrate dev` dan memeriksa tabel langsung di PostgreSQL menggunakan `psql` (`\d "Room"` dan `\d "Reservation"`).
+  - Mengeksekusi `npx prisma db seed` sebanyak 2 kali dan memverifikasi jumlah baris data via `SELECT COUNT(*)`.
+  - Menguji formulir UI secara langsung di peramban pada `http://localhost:3000` untuk memvalidasi alur CRUD dan respons error P2002.
+  - Menjalankan pengecekan tipe statis TypeScript melalui `npx tsc --noEmit` dengan exit code 0.
