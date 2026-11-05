@@ -575,6 +575,5 @@ Langkah teknis agar dosen/asisten dapat menguji aplikasi dari awal:
 
 Mengarahkan penilai ke berkas laporan teknis terperinci:
 
-* **Laporan Komprehensif Milestone 2:** [docs/MILESTONE_2.md](docs/MILESTONE_2.md)
 * **Dokumen Praktikum Modul 6 (Database Relasional, Migrasi, & Transaksi):** [docs/praktikum/modul-06.md](docs/praktikum/modul-06.md)
 * **Dokumen Praktikum Modul 5:** [docs/praktikum/modul-05.md](docs/praktikum/modul-05.md)
