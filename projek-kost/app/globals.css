@@ -16,6 +16,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Hilangkan garis kotak-kotak putus-putus / outline saat elemen diklik menggunakan mouse/touch */
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Aksesibilitas keyboard tetap terjaga dengan outline solid yang rapi hanya saat menekan tombol Tab */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+
 /* Reduced motion accessibility */
 @media (prefers-reduced-motion: reduce) {
   *,

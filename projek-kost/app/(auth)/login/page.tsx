@@ -3,7 +3,9 @@
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { setAuthUser, DEFAULT_MOCK_USER, getRegisteredUsers } from '@/lib/auth';
+import { setAuthUser, getRegisteredUsers, saveRegisteredUser } from '@/lib/auth';
+import { buatSesiAction } from '@/actions/session';
+import { findUserByEmailAction } from '@/actions/auth';
 
 function LoginFormContent() {
   const router = useRouter();
@@ -25,14 +27,14 @@ function LoginFormContent() {
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email.trim())) {
-        newErrors.email = 'Format email tidak valid (contoh: user@domain.com).';
+        newErrors.email = 'Format email tidak valid.';
       }
     }
 
     if (!password) {
       newErrors.password = 'Kata sandi wajib diisi.';
-    } else if (password.length < 6) {
-      newErrors.password = 'Kata sandi minimal 6 karakter.';
+    } else if (password.length < 8) {
+      newErrors.password = 'Kata sandi minimal 8 karakter.';
     }
 
     return newErrors;
@@ -44,7 +46,7 @@ function LoginFormContent() {
     setErrors((prev) => ({ ...prev, [field]: currentErrors[field] }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched({ email: true, password: true });
 
@@ -55,37 +57,67 @@ function LoginFormContent() {
     }
 
     setIsLoading(true);
+    setErrors({});
 
-    // Cari apakah ada data akun di registered users
-    const registered = getRegisteredUsers();
-    const matchedUser = registered.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+    try {
+      const cleanInput = email.trim().toLowerCase();
+      const cleanDigits = email.trim().replace(/\D/g, '');
 
-    const userName = matchedUser
-      ? matchedUser.name
-      : email.toLowerCase().includes('penyewa')
-      ? 'Penyewa R-Stay'
-      : email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      // 1. Cari apakah ada data akun di registered users lokal (localStorage)
+      const registered = getRegisteredUsers();
+      let matchedUser = registered.find((u) => {
+        const matchEmail = u.email && u.email.toLowerCase() === cleanInput;
+        const matchPhone = cleanDigits.length >= 8 && u.phone && u.phone.replace(/\D/g, '') === cleanDigits;
+        const matchUsername = (u.username && u.username.toLowerCase() === cleanInput) ||
+                              (u.usernameSSO && u.usernameSSO.toLowerCase() === cleanInput);
+        return matchEmail || matchPhone || matchUsername;
+      });
 
-    const userPhone = matchedUser?.phone || '081234567890';
+      // 2. Jika tidak ada di localStorage, cari langsung di database PostgreSQL
+      if (!matchedUser) {
+        const dbUserRes = await findUserByEmailAction(cleanInput);
+        if (dbUserRes.success && dbUserRes.data) {
+          const u = dbUserRes.data;
+          matchedUser = {
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            password: u.password,
+            role: (u.role.toLowerCase() === 'admin' ? 'admin' : 'penyewa'),
+          };
+          // Sinkronkan ke localStorage
+          saveRegisteredUser(matchedUser);
+        }
+      }
 
-    setTimeout(() => {
+      // 3. Validasi Kredensial Akun
+      if (!matchedUser || !matchedUser.password || matchedUser.password !== password) {
+        setIsLoading(false);
+        setErrors({
+          general: 'Email atau kata sandi salah.',
+        });
+        return;
+      }
+
+      // 4. Autentikasi berhasil: Buat Sesi Server (Cookie 'sesi') & Klien
+      buatSesiAction(matchedUser.email, matchedUser.role || 'penyewa').catch(console.error);
+
       setAuthUser({
-        name: userName,
-        email: email.trim(),
-        phone: userPhone,
-        role: 'penyewa',
+        name: matchedUser.name,
+        email: matchedUser.email,
+        phone: matchedUser.phone || '081234567890',
+        role: matchedUser.role || 'penyewa',
+        nik: matchedUser.nik,
+        username: matchedUser.username,
       });
 
       setIsLoading(false);
       router.push(redirectParam);
-    }, 400);
-  };
-
-  const handleFillMockAccount = () => {
-    setEmail(DEFAULT_MOCK_USER.email);
-    setPassword('password123');
-    setErrors({});
-    setTouched({ email: true, password: true });
+    } catch (err) {
+      console.error(err);
+      setIsLoading(false);
+      setErrors({ general: 'Terjadi kesalahan sistem saat masuk.' });
+    }
   };
 
   return (
@@ -95,7 +127,7 @@ function LoginFormContent() {
         <div className="text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-cyan-900 rounded-xl p-1"
+            className="inline-flex items-center gap-3 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-900 rounded-xl p-1"
           >
             <div className="w-11 h-11 rounded-xl bg-cyan-900 text-white flex items-center justify-center font-bold text-xl shadow-md">
               R
@@ -146,20 +178,35 @@ function LoginFormContent() {
 
         {/* Form Card */}
         <div className="mt-6 bg-white py-8 px-6 sm:px-10 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          {/* Pesan Kesalahan Autentikasi Global */}
+          {errors.general && (
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in">
+              <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="font-semibold">Gagal Masuk Akun</p>
+                <p className="text-xs text-red-600 mt-0.5">{errors.general}</p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {/* Input Email */}
+            {/* Input Email / No WA / Username */}
             <div>
               <label htmlFor="login-email" className="block text-sm font-semibold text-slate-900 mb-1.5">
-                Alamat Email <span className="text-red-500">*</span>
+                Alamat Email / Nomor WhatsApp <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   id="login-email"
-                  type="email"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onBlur={() => handleBlur('email')}
-                  placeholder="penyewa@rstay.com"
+                  placeholder="Contoh: user@email.com atau 081234567890"
                   className={`w-full px-4 py-2.5 rounded-xl border text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:ring-2 transition-colors ${
                     errors.email && touched.email
                       ? 'border-red-500 focus:ring-red-400 bg-red-50/20'
@@ -170,8 +217,8 @@ function LoginFormContent() {
                 />
               </div>
               {errors.email && touched.email && (
-                <p id="email-error" className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <span>&bull;</span> {errors.email}
+                <p id="email-error" className="mt-1 text-xs text-red-600">
+                  {errors.email}
                 </p>
               )}
             </div>
@@ -186,11 +233,13 @@ function LoginFormContent() {
               <div className="relative">
                 <input
                   id="login-password"
+                  name="password"
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onBlur={() => handleBlur('password')}
-                  placeholder="Minimal 6 karakter"
+                  placeholder="Minimal 8 karakter"
                   className={`w-full px-4 py-2.5 rounded-xl border text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:ring-2 transition-colors ${
                     errors.password && touched.password
                       ? 'border-red-500 focus:ring-red-400 bg-red-50/20'
@@ -201,8 +250,8 @@ function LoginFormContent() {
                 />
               </div>
               {errors.password && touched.password && (
-                <p id="password-error" className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <span>&bull;</span> {errors.password}
+                <p id="password-error" className="mt-1 text-xs text-red-600">
+                  {errors.password}
                 </p>
               )}
             </div>
@@ -211,7 +260,7 @@ function LoginFormContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 flex items-center justify-center gap-2"
+              className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -236,32 +285,6 @@ function LoginFormContent() {
             >
               Daftar sekarang
             </Link>
-          </div>
-
-          {/* Bantuan Penguji (Demo / Testing Box) */}
-          <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-100 text-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-blue-900 flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Akun Uji Coba Penguji
-              </span>
-              <button
-                type="button"
-                onClick={handleFillMockAccount}
-                className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-50 transition-colors shadow-2xs"
-              >
-                Gunakan Akun Ini
-              </button>
-            </div>
-            <div className="text-slate-600 leading-relaxed font-mono text-[11px]">
-              <div>Email : <span className="text-slate-900 font-semibold">{DEFAULT_MOCK_USER.email}</span></div>
-              <div>Sandi : <span className="text-slate-900 font-semibold">password123</span></div>
-            </div>
-            <p className="text-[10px] text-slate-500 italic">
-              *Sistem Mock Auth menyimpan sesi langsung di browser (localStorage) tanpa backend database.
-            </p>
           </div>
         </div>
 

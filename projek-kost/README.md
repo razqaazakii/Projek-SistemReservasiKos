@@ -41,8 +41,6 @@ Berfungsi untuk mengamankan password pengguna agar tidak bisa dibaca oleh siapa 
 - **Representasi Data:** Disimpan dalam format teks hexadecimal agar aman dan mudah dimasukkan ke dalam pangkalan data.
 - **Sumber Keacakan:** Menggunakan `crypto.randomBytes` dari Node.js yang mengambil nilai acak langsung dari mesin sistem operasi (CSPRNG).
 
----
-
 ### Komponen 2: Pembangkit Token Sesi
 
 Berfungsi membuat tanda pengenal unik saat pengguna berhasil login.
@@ -52,8 +50,6 @@ Berfungsi membuat tanda pengenal unik saat pengguna berhasil login.
 - **Keluaran (Output):** Teks hexadecimal dengan tingkat acak yang sangat tinggi (384-bit entropy).
 - **Representasi Data:** Disimpan di dalam cookie peramban (browser) atau header otorisasi.
 - **Sumber Keacakan:** Menggunakan `crypto.randomBytes(48)`. Setiap kali dipanggil, fungsi ini dijamin menghasilkan kode yang berbeda.
-
----
 
 ### Komponen 3: Integritas Data Reservasi (HMAC)
 
@@ -65,8 +61,6 @@ Berfungsi sebagai "stempel keamanan" untuk memastikan nominal harga atau data ka
 - **Representasi Data:** Disimpan berdampingan dengan data reservasi sebagai bukti keaslian transaksi.
 - **Sumber Keacakan:** Komponen ini tidak membutuhkan nilai acak, melainkan murni bergantung pada seberapa rahasia Secret Key yang disimpan di server.
 
----
-
 ### Komponen 4: Pembuatan Sidik Jari Objek Reservasi
 
 Berfungsi untuk memastikan struktur dan isi objek data (JSON) selalu konsisten.
@@ -76,8 +70,6 @@ Berfungsi untuk memastikan struktur dan isi objek data (JSON) selalu konsisten.
 - **Keluaran (Output):** Teks hexadecimal sepanjang 64 karakter.
 - **Representasi Data:** Bersifat pasti (deterministik). Selama isi datanya sama, urutan penyusunan tidak akan merubah hasil akhir.
 - **Sumber Keacakan:** Tidak menggunakan nilai acak.
-
----
 
 ### Alur Kerja Registrasi & Login
 
@@ -92,8 +84,6 @@ Berfungsi untuk memastikan struktur dan isi objek data (JSON) selalu konsisten.
 2. Sistem mengambil nilai hash dan salt milik pengguna tersebut dari database.
 3. Sistem memverifikasi kecocokkannya melalui fungsi `verifyPassword()`.
 4. Jika cocok (bernilai `true`), sistem memanggil `generateSessionToken()` untuk membuat tiket sesi dan membiarkan pengguna masuk.
-
----
 
 ## 4. Skenario Pengujian (Testing Scenarios)
 
@@ -189,7 +179,6 @@ Dijalankan dengan perintah: `npx jest crypto_core.test.js`
 | verifyPassword gagal untuk password berbeda pada vektor sama        |  Pass  |
 | Format hash: hex 64 karakter (SHA-256 = 32 bytes)                   |  Pass  |
 
----
 
 ## 6. Catatan Keputusan Desain
 
@@ -205,13 +194,8 @@ Dijalankan dengan perintah: `npx jest crypto_core.test.js`
 
 - **Pencegahan Timing Attack:** Validasi login dan MAC diproses menggunakan `crypto.timingSafeEqual()` agar peretas tidak bisa menebak password berdasarkan durasi respons dari server.
 
----
+# Dokumentasi Tugas 1 (Milestone 1) — Antarmuka Pengguna & Komponen Reusable
 
-# Dokumentasi Tugas 1 (Milestone 1) — Pengembangan Aplikasi Web
-
-**Mata Kuliah:** Pengembangan Aplikasi Website  
-**Nama Pengembang:** Razqa Azaki  
-**NIM:** 105224046  
 **Tahapan Proyek:** Milestone 1 (Perancangan Antarmuka, Komponen Reusable, & Validasi Sisi Klien)
 
 ---
@@ -396,3 +380,201 @@ Pastikan komputer Anda telah terpasang **Node.js** (versi 18.18 atau lebih baru)
    ```bash
    npm test
    ```
+
+# Dokumentasi Tugas 2 (Milestone 2) — Integrasi Logika Server & Database PostgreSQL 3NF
+
+## 1. Identitas Proyek & Milestone
+
+Informasi dasar mengenai pengembang, mata kuliah, dan status versi produk:
+
+| Informasi | Keterangan |
+| :--- | :--- |
+| **Nama Produk** | **R-Stay** (*Smart & Inclusive Boarding House Reservation System*) |
+| **Identitas Mahasiswa** | **Razqa Azaki** (NIM: **105224046**) |
+| **Mata Kuliah** | Pengembangan Aplikasi Web / Praktikum Pengembangan Aplikasi Web |
+| **Versi Rilis Git** | `v0.2` (Tag: `v0.2`, Branch: `tugas-2/backend`) |
+
+---
+
+## 2. Ringkasan Perkembangan (Changelog v0.1 → v0.2)
+
+Tabel perbandingan transformasi arsitektur dari antarmuka statis (*Milestone 1*) menuju aplikasi dinamis dengan basis data (*Milestone 2*):
+
+| Komponen Fitur | Versi v0.1 (Milestone 1) | Versi v0.2 (Milestone 2) |
+| :--- | :--- | :--- |
+| **Penyimpanan Data** | Mock array statis di memori | **PostgreSQL lokal via Prisma ORM 7** |
+| **Model Data** | Struktur data lepas tanpa relasi | **4 Entitas Relasional 3NF** (`Room`, `Reservation`, `User`, `Penghuni`) |
+| **Operasi CRUD** | Sisi klien terbatas | **CRUD Penuh** pada Kamar Kos & Reservasi di UI Admin |
+| **Validasi Formulir** | Validasi peramban (HTML5 & RegExp) | **Validasi Server Berlapis Zod 4** (Sintaksis & Semantik) |
+| **Mutasi Data** | State lokal React murni | **Next.js 16 Server Actions (`'use server'`)** dengan `revalidatePath` |
+| **Sesi & Akses** | Tidak ada sesi | **Server Session Map** dengan token UUID & cookie `HttpOnly` |
+
+---
+
+## 3. Arsitektur Basis Data Relasional & Diagram ERD (3NF)
+
+Membuktikan kepatuhan terhadap normalisasi **Third Normal Form (3NF)**:
+* **Diagram ERD Mermaid:** Menampilkan relasi `1:N` antara `User`, `Room`, `Reservation`, dan `Penghuni`.
+* **Kaidah 3NF:** Setiap tabel memenuhi 1NF (nilai atomik), 2NF (ketergantungan penuh pada Primary Key), dan 3NF (tidak ada ketergantungan transitif; pemisahan akun `User`, transaksi `Reservation`, dan operasional hunian `Penghuni`).
+
+```mermaid
+erDiagram
+    USERS ||--o{ RESERVATIONS : "1 : N (membuat reservasi)"
+    ROOMS ||--o{ RESERVATIONS : "1 : N (dipesan dalam)"
+    USERS ||--o{ PENGHUNI : "1 : N (menjadi penghuni aktif)"
+    ROOMS ||--o{ PENGHUNI : "1 : N (ditempati dalam operasional)"
+
+    USERS {
+        string id PK "cuid()"
+        string email UK "Email unik pengguna"
+        string name "Nama lengkap"
+        string phone "Nomor telepon / WA"
+        string role "ADMIN / PENYEWA"
+    }
+
+    ROOMS {
+        string id PK "cuid()"
+        string name "Nama kamar kos"
+        string slug UK "Unique slug untuk rute URL"
+        float price "Tarif sewa bulanan"
+        string type "Putra / Putri / Campur"
+        string location "Alamat lokasi kamar"
+        boolean isAvailable "Status ketersediaan"
+    }
+
+    RESERVATIONS {
+        string id PK "cuid()"
+        string userId FK "Relasi ke User"
+        string roomId FK "Relasi ke Room"
+        datetime checkInDate "Tanggal sewa"
+        int durationMonths "Durasi (1-12 bulan)"
+        float totalPrice "Total kalkulasi biaya"
+        string status "PENDING / CONFIRMED / CANCELLED"
+    }
+
+    PENGHUNI {
+        string id PK "cuid()"
+        string userId FK "Relasi ke User"
+        string roomId FK "Relasi ke Room"
+        string nik "Nomor Induk Kependudukan"
+        datetime tanggalMasuk "Waktu mulai sewa"
+        float biayaSewa "Tarif bulanan"
+        string statusBayar "Lunas / Belum Bayar"
+    }
+```
+
+---
+
+## 4. Implementasi Logika Server & Keamanan
+
+Rangkuman fitur *back-end* yang telah dibangun:
+
+1. **Server Actions (`'use server'`):**
+   * Penanganan mutasi formulir tambah kamar (`createRoomAction` / `tambahKamar`), perbarui kamar (`updateRoomAction` / `ubahKamar`), dan hapus kamar (`deleteRoomAction` / `hapusKamar`).
+   * Penanganan reservasi kamar (`createBookingAction`), konfirmasi persetujuan reservasi, dan pembatalan transaksi dengan revalidasi rute otomatis via `revalidatePath`.
+2. **Validasi Server Zod 4:**
+   * **Validasi Sintaksis:** Memvalidasi tipe data, batas minimal/maksimal karakter nama dan deskripsi, rentang harga sewa (`min: Rp 100.000`), serta pilihan durasi sewa (`1, 3, 6, 12 bulan`).
+   * **Validasi Semantik:** Memeriksa aturan bisnis dinamis sebelum kueri simpan, seperti verifikasi keunikan nama kamar ke PostgreSQL untuk mencegah duplikasi entitas.
+3. **Manajemen Sesi & Keamanan Cookie:**
+   * Penyimpanan sesi terpusat di server (`globalThis.sesiTiruan`).
+   * Atribut keamanan cookie sesi: `HttpOnly: true`, `SameSite: "lax"`, `Path: "/"`, `Max-Age: 28800` (8 jam).
+   * Gatekeeper rute optimistik melalui boundary **`proxy.ts`** (Next.js 16).
+
+---
+
+## 5. Ringkasan Pengujian Sistem (10 Skenario Uji)
+
+* **Tingkat Kelulusan:** 10 dari 10 skenario lulus (**100%**, melampaui syarat minimal 90%).
+* **Komposisi Pengujian:** 8 Skenario CRUD (Kamar Kos & Reservasi) dan 2 Skenario Pengujian Relasi & Transaksi Data (`1:N` Room-Reservation & Integritas Atomik Transaksi).
+* **Bukti Penolakan Validasi Server (3 Kasus):**
+  1. Penolakan nama/slug kamar duplikat melalui validasi semantik & penanganan kode galat Prisma `P2002`.
+  2. Penolakan durasi sewa di luar aturan (0 atau 24 bulan) melalui skema Zod.
+  3. Penolakan pengiriman form dengan nama kamar kosong saat validasi klien dilewati (`noValidate`).
+* **Bukti Persistensi Data:** Data yang berhasil dibuat, diubah, atau dihapus melalui aplikasi terbukti menghasilkan perubahan permanen pada basis data PostgreSQL.
+
+### Rincian 10 Skenario Pengujian:
+
+1. **Tambah Kamar Kos dengan Data Sah (Kategori: CRUD - Create)**  
+   *Langkah:* Mengisi dan mengirim formulir kamar baru dengan nama unik, harga valid, tipe, dan deskripsi lengkap.  
+   *Hasil & Evaluasi:* Data kamar baru berhasil disimpan ke basis data PostgreSQL dan langsung ter-render secara otomatis pada katalog `/rooms` serta dasbor admin. (**Status: LULUS**)
+
+2. **Tambah Kamar dengan Nama/Slug Ganda (Kategori: CRUD - Create)**  
+   *Langkah:* Mengirim formulir kamar baru menggunakan judul atau slug yang sudah pernah tersimpan sebelumnya di database.  
+   *Hasil & Evaluasi:* Server Action berhasil menangkap kode galat Prisma `P2002` (atau aturan semantik nama duplikat) dan menampilkan pesan peringatan: *"Judul/Nama kamar sudah terdaftar"*. (**Status: LULUS**)
+
+3. **Tambah Kamar dengan Judul Kosong (Kategori: CRUD - Create)**  
+   *Langkah:* Mengirim formulir kamar dengan membiarkan kolom nama atau judul kamar dalam keadaan kosong.  
+   *Hasil & Evaluasi:* Skema validasi Zod di sisi server langsung menolak *payload* sebelum kueri dieksekusi, lalu memunculkan pesan galat *field-level*: *"Judul minimal 3 karakter."* tanpa mengirim panggilan kueri ke basis data. (**Status: LULUS**)
+
+4. **Perbarui Deskripsi dan Harga Sewa (Kategori: CRUD - Update)**  
+   *Langkah:* Membuka formulir edit kamar yang tersedia, memperbarui teks deskripsi serta nominal harga sewa, lalu menekan tombol simpan.  
+   *Hasil & Evaluasi:* Perubahan data berhasil tersimpan di PostgreSQL dan nilai baru langsung muncul pada rute detail kamar `/rooms/[id]`. (**Status: LULUS**)
+
+5. **Ubah Data Kamar yang Sudah Terhapus (Kategori: CRUD - Update)**  
+   *Langkah:* Menjalankan Server Action `ubahKamar` dengan menyertakan parameter ID kamar yang sudah tidak eksis di database.  
+   *Hasil & Evaluasi:* Prisma menangkap ketiadaan data melalui kode galat `P2025` (Record not found), kemudian sistem menampilkan pesan: *"Kamar tidak ditemukan atau sudah dihapus."*. (**Status: LULUS**)
+
+6. **Akses Rute Detail dengan ID Tidak Valid (Kategori: CRUD - Read)**  
+   *Langkah:* Membuka URL kamar yang tidak valid melalui peramban, seperti mengakses rute `/katalog/abc` atau `/rooms/999999`.  
+   *Hasil & Evaluasi:* Aplikasi mengeksekusi fungsi bawaan `notFound()` dan menyajikan halaman tampilan antarmuka 404 (Not Found) yang bersih dan ramah pengguna tanpa *error trace* internal 500. (**Status: LULUS**)
+
+7. **Hapus Kamar Beserta Seluruh Riwayatnya (Kategori: Relasi & Transaksi)**  
+   *Langkah:* Menjalankan aksi `hapusKamar` yang membungkus fungsi `deleteMany` (data riwayat reservasi) dan `delete` (data kamar) di dalam metode `prisma.$transaction`.  
+   *Hasil & Evaluasi:* Eksekusi unit atomik transaksi berhasil; data kamar beserta seluruh relasi data reservasi terkait terhapus secara tuntas dan konsisten. (**Status: LULUS**)
+
+8. **Pembuktian Rollback Transaksi saat Perintah Kedua Gagal (Kategori: Relasi & Transaksi)**  
+   *Langkah:* Mensimulasikan kegagalan pada perintah kedua transaksi basis data, misalnya mengeksekusi penghapusan kamar dengan ID fiktif `id + 100000`.  
+   *Hasil & Evaluasi:* Perintah kedua menghasilkan galat `P2025` sehingga seluruh mutasi transaksi di-*rollback*; data reservasi tetap utuh dan terverifikasi melalui penghitungan `COUNT`. (**Status: LULUS**)
+
+9. **Tambah Reservasi dengan Durasi di Luar Aturan (Kategori: CRUD - Create Anak)**  
+   *Langkah:* Mengisi formulir pengajuan reservasi menggunakan nilai durasi sewa yang melanggar batasan, seperti memasukkan angka 0 bulan atau 24 bulan (aturan valid: 1–12 bulan).  
+   *Hasil & Evaluasi:* Validasi skema Zod menolak masukan secara otomatis serta menampilkan pesan galat validasi durasi: *"Pilihan durasi sewa harus 1, 3, 6, atau 12 bulan."* tanpa melakukan penulisan ke database. (**Status: LULUS**)
+
+10. **Reservasi Kedua oleh Penyewa Sama pada Kamar Sama (Kategori: Relasi - Constraint)**  
+    *Langkah:* Mengirimkan formulir reservasi kedua untuk unit kamar yang sama menggunakan alamat email penyewa yang identik.  
+    *Hasil & Evaluasi:* Sistem menolak operasi karena melanggar aturan batasan unik relasi kamar dan email (`P2002`), lalu menyajikan pesan: *"Email ini sudah memiliki reservasi aktif di kamar ini"*. (**Status: LULUS**)
+
+---
+
+## 6. Panduan Menjalankan Aplikasi Secara Lokal (Setup & Installation)
+
+Langkah teknis agar dosen/asisten dapat menguji aplikasi dari awal:
+
+1. **Instal Seluruh Dependensi:**
+   ```bash
+   npm install
+   ```
+
+2. **Salin Berkas Environment:**
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Konfigurasi `DATABASE_URL` di `.env`:**
+   Sesuaikan connection string dengan kredensial PostgreSQL lokal Anda:
+   ```env
+   DATABASE_URL="postgresql://postgres:password_anda@localhost:5432/rstay_db?schema=public"
+   ```
+
+4. **Eksekusi Migrasi & Pengisian Data Awal (Seeding):**
+   ```bash
+   npx prisma db push
+   npx prisma generate
+   npx tsx prisma/seed.ts
+   ```
+
+5. **Jalankan Aplikasi:**
+   ```bash
+   npm run dev
+   ```
+   Aplikasi dapat diakses melalui peramban pada alamat `http://localhost:3000`.
+
+---
+
+## 7. Tautan ke Laporan Lengkap
+
+Mengarahkan penilai ke berkas laporan teknis terperinci:
+
+* **Laporan Komprehensif Milestone 2:** [docs/MILESTONE_2.md](docs/MILESTONE_2.md)
+* **Dokumen Praktikum Modul 6 (Database Relasional, Migrasi, & Transaksi):** [docs/praktikum/modul-06.md](docs/praktikum/modul-06.md)
+* **Dokumen Praktikum Modul 5:** [docs/praktikum/modul-05.md](docs/praktikum/modul-05.md)

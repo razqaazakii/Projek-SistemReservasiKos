@@ -19,13 +19,13 @@ interface ContactItem {
   iconColor: string;
 }
 
-// Data navigasi diangkat ke module-level — tidak hardcode di JSX
+// Data navigasi diangkat ke module-level
 const NAV_ITEMS: NavItem[] = [
   { label: 'Beranda', href: '/' },
   { label: 'Katalog Kamar', href: '/rooms' },
   { label: 'Tentang & Fasilitas', href: '/#about' },
   { label: 'Pertanyaan Umum (FAQ)', href: '/#faq' },
-  { label: 'Ajukan Reservasi →', href: '/booking', highlight: true },
+  { label: 'Ajukan Reservasi', href: '/booking', highlight: true },
 ];
 
 export default function Footer() {
@@ -58,7 +58,7 @@ export default function Footer() {
           <div className="space-y-4 lg:col-span-1">
             <Link
               href="/"
-              className="inline-flex items-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-900 rounded-lg"
+              className="inline-flex items-center gap-2.5 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-900 rounded-lg"
               aria-label="R-Stay Boarding House"
             >
               <div className="w-9 h-9 rounded-lg bg-cyan-900 text-white flex items-center justify-center font-bold text-lg shadow-sm">
@@ -83,7 +83,6 @@ export default function Footer() {
             <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-4">
               Navigasi
             </h3>
-            {/* Render dari data — tidak hardcode setiap <li> */}
             <ul className="space-y-2.5 text-sm">
               {NAV_ITEMS.map((item) => (
                 <li key={item.href}>
@@ -91,11 +90,21 @@ export default function Footer() {
                     href={item.href}
                     className={
                       item.highlight
-                        ? 'text-blue-600 font-semibold hover:text-blue-700 transition-colors'
+                        ? 'inline-flex items-center gap-1.5 text-blue-600 font-semibold hover:text-blue-700 transition-colors group'
                         : 'text-slate-600 hover:text-blue-600 transition-colors'
                     }
                   >
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.highlight && (
+                      <svg
+                        className="w-4 h-4 text-blue-600 transition-transform group-hover:translate-x-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    )}
                   </Link>
                 </li>
               ))}

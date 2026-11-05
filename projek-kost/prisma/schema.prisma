@@ -1,0 +1,85 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. Entitas Pengguna & Akun (Master User)
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  phone        String
+  password     String
+  role         String        @default("PENYEWA") // ADMIN, PENYEWA
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relasi 1:N
+  reservations Reservation[]
+  penghuni     Penghuni[]
+}
+
+// 2. Entitas Kamar Kos (Master Properti)
+
+model Room {
+  id           String        @id @default(cuid())
+  name         String
+  slug         String        @unique
+  price        Float
+  type         String        // Putra, Putri, Campur
+  location     String
+  isAvailable  Boolean       @default(true)
+  facilities   String[]
+  images       String[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relasi 1:N
+  reservations Reservation[]
+  penghuni     Penghuni[]
+}
+
+// 3. Entitas Pemesanan (Transaksi Reservasi - 3NF)
+
+model Reservation {
+  id             String    @id @default(cuid())
+  userId         String
+  roomId         String
+  checkInDate    DateTime
+  durationMonths Int
+  totalPrice     Float
+  notes          String?
+  status         String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relasi Foreign Key
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room           Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+// 4. Entitas Penghuni Kos Aktif (Operasional Hunian & Tagihan)
+
+model Penghuni {
+  id           String    @id @default(cuid())
+  userId       String
+  roomId       String
+  nik          String
+  tanggalMasuk DateTime  @default(now())
+  biayaSewa    Float
+  deposit      Float     @default(0)
+  statusBayar  String    @default("Belum Bayar") // Lunas, Belum Bayar
+  jatuhTempo   DateTime
+  ktpImage     String?
+  catatan      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relasi Foreign Key
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room         Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}

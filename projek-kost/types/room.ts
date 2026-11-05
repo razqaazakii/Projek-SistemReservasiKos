@@ -38,3 +38,13 @@ export interface BookingFormErrors {
   checkInDate?: string;
   duration?: string;
 }
+
+export interface ActionResponse<T = unknown> {
+  success: boolean;
+  message: string;
+  pesan?: string;
+  errors?: Record<string, string[] | undefined>;
+  galat?: Record<string, string[] | undefined>;
+  nilai?: Record<string, string>;
+  data?: T;
+}

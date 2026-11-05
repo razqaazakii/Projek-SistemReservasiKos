@@ -3,36 +3,37 @@ import { Room } from '@/types/room';
 export const roomsData: Room[] = [
   {
     id: 'kost-001',
-    name: 'Kost Griya Asri Tipe Deluxe',
-    price: 1650000,
-    location: 'Sleman, DI Yogyakarta (Dekat Kampus UGM)',
-    type: 'Putra',
-    size: '3.5 x 4 meter',
+    name: 'Kost Ajolie Executive',
+    price: 1750000,
+    location: 'Kebayoran Lama, Jakarta Selatan (Dekat ITC Permata Hijau & Univ. Pertamina)',
+    type: 'Campur',
+    size: '3 x 3 meter',
     facilities: [
-      'AC Dingin 1/2 PK',
-      'Kamar Mandi Dalam',
-      'Water Heater',
-      'WiFi Super Cepat 100 Mbps',
-      'Kasur Springbed Queen Size',
-      'Meja Kerja & Kursi Ergonomis',
-      'Lemari Pakaian 2 Pintu',
-      'Parkir Motor & Mobil Luas'
+      'AC Dingin',
+      'Kamar Mandi Dalam (Shower & Kloset Duduk)',
+      'WiFi Cepat Fiber Optic',
+      'Kasur & Tempat Tidur Nyaman',
+      'Lemari Pakaian',
+      'Meja & Kursi Belajar/Kerja',
+      'Dapur Bersama & Kulkas',
+      'Akses Gerbang 24 Jam',
+      'Area Parkir Motor Aman'
     ],
     isAvailable: true,
     imageUrl: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80',
-    description: 'Hunian kos putra modern bernuansa tenang dan bersih. Berjarak hanya 7 menit dari area kampus utama. Dilengkapi sistem keamanan CCTV 24 jam dan akses gerbang kartu digital yang nyaman.',
+    description: 'Kost Ajolie berlokasi sangat strategis di Grogol Selatan, Kebayoran Lama, Jakarta Selatan. Akses sangat dekat dengan Universitas Pertamina, ITC Permata Hijau, Stasiun KRL Kebayoran, dan Halte Busway Transjakarta. Menawarkan kamar ber-AC dengan kamar mandi dalam, akses mandiri 24 jam, serta lingkungan hunian yang tenang dan nyaman untuk mahasiswa maupun karyawan.',
     rules: [
-      'Dilarang merokok di dalam kamar tidur',
-      'Jam malam tamu berkunjung maksimal pukul 22.00 WIB',
-      'Menjaga ketenangan dan kebersihan bersama',
-      'Tidak diperkenankan membawa hewan peliharaan'
+      'Maksimal 2 orang per kamar',
+      'Akses gerbang keluar-masuk 24 jam bebas',
+      'Dilarang membawa hewan peliharaan',
+      'Wajib menjaga kebersihan fasilitas bersama dan ketenangan malam'
     ],
     rating: 4.9,
     specs: {
-      size: '3.5 x 4 meter',
-      bedType: 'Springbed Queen (160x200)',
-      electricity: 'Listrik Token Mandiri (1300 VA)',
-      bathroom: 'Kamar Mandi Dalam (Kloset Duduk & Shower)'
+      size: '3 x 3 meter',
+      bedType: 'Single Bed Premium (120x200)',
+      electricity: 'Listrik Token Mandiri',
+      bathroom: 'Kamar Mandi Dalam (Shower & Kloset Duduk)'
     }
   },
   {

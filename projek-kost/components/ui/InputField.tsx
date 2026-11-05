@@ -15,8 +15,8 @@ export interface InputFieldProps {
   label: string;
   // Gunakan FieldVariant — bukan mencampur HTML type dengan render mode
   type?: FieldVariant;
-  value: string | number;
-  onChange: (
+  value?: string | number;
+  onChange?: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => void;
   onBlur?: (
@@ -34,25 +34,31 @@ export interface InputFieldProps {
   className?: string;
 }
 
-export default function InputField({
-  id,
-  name,
-  label,
-  type = 'text',
-  value,
-  onChange,
-  onBlur,
-  placeholder,
-  required = false,
-  disabled = false,
-  error,
-  helperText,
-  options = [],
-  rows = 3,
-  min,
-  max,
-  className = '',
-}: InputFieldProps) {
+const InputField = React.forwardRef<
+  HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement,
+  InputFieldProps
+>(function InputField(
+  {
+    id,
+    name,
+    label,
+    type = 'text',
+    value,
+    onChange,
+    onBlur,
+    placeholder,
+    required = false,
+    disabled = false,
+    error,
+    helperText,
+    options = [],
+    rows = 3,
+    min,
+    max,
+    className = '',
+  },
+  ref
+) {
   const errorId = `${id}-error`;
   const helperId = `${id}-helper`;
   const hasError = Boolean(error);
@@ -69,7 +75,7 @@ export default function InputField({
     'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
   ].join(' ');
 
-  // Shared props untuk semua tipe field — hindari duplikasi
+  // Shared props untuk semua tipe field — kompatibel dengan controlled maupun react-hook-form
   const sharedProps = {
     id,
     name,
@@ -98,8 +104,8 @@ export default function InputField({
       {type === 'select' ? (
         <select
           {...sharedProps}
-          // String() memastikan value aman untuk select meski bertipe number
-          value={String(value)}
+          ref={ref as React.Ref<HTMLSelectElement>}
+          {...(value !== undefined ? { value: String(value) } : {})}
           className={`${baseInputStyles} cursor-pointer`}
         >
           {placeholder && (
@@ -116,8 +122,8 @@ export default function InputField({
       ) : type === 'textarea' ? (
         <textarea
           {...sharedProps}
-          // String() memastikan value aman untuk textarea meski bertipe number
-          value={String(value)}
+          ref={ref as React.Ref<HTMLTextAreaElement>}
+          {...(value !== undefined ? { value: String(value) } : {})}
           placeholder={placeholder}
           rows={rows}
           className={baseInputStyles}
@@ -125,9 +131,9 @@ export default function InputField({
       ) : (
         <input
           {...sharedProps}
-          // type di sini adalah InputType — nilai yang valid untuk atribut HTML
+          ref={ref as React.Ref<HTMLInputElement>}
           type={type as InputType}
-          value={value}
+          {...(value !== undefined ? { value } : {})}
           placeholder={placeholder}
           min={min}
           max={max}
@@ -164,4 +170,6 @@ export default function InputField({
       )}
     </div>
   );
-}
+});
+
+export default InputField;

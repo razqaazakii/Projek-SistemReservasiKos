@@ -72,8 +72,23 @@ export default function Navbar() {
     router.push('/');
   };
 
-  // Hash-links (/#about, /#faq) tidak pernah cocok dengan pathname —
-  //    guard ini mencegah false-negative yang menyesatkan
+  // Navigasi responsif instan untuk hash link (#about, #faq) tanpa jeda router Next.js
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith('/#')) {
+      const targetId = href.replace('/#', '');
+      if (pathname === '/') {
+        e.preventDefault();
+        const targetElement = document.getElementById(targetId);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth' });
+          window.history.pushState(null, '', `#${targetId}`);
+        }
+      }
+    }
+    closeMenu();
+  };
+
+  // Status link aktif
   const isLinkActive = (href: string): boolean => {
     if (href.includes('#')) return false;
     if (href === '/') return pathname === '/';
@@ -90,7 +105,7 @@ export default function Navbar() {
         <Link
           href="/"
           onClick={closeMenu}
-          className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-cyan-900 rounded-lg py-1 pr-2 transition-opacity hover:opacity-90"
+          className="flex items-center gap-3 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-900 rounded-lg py-1 pr-2 transition-opacity hover:opacity-90"
           aria-label="R-Stay Boarding House - Beranda"
         >
           <div className="w-9 h-9 rounded-lg bg-cyan-900 text-white flex items-center justify-center font-bold text-lg shadow-sm">
@@ -114,8 +129,10 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
+                prefetch={true}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className={[
-                  'h-16 inline-flex items-center text-sm font-medium transition-colors border-b-2 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                  'h-16 inline-flex items-center text-sm font-medium transition-colors border-b-2 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                   active
                     ? 'border-blue-600 text-slate-900 font-semibold'
                     : 'border-transparent text-slate-600 hover:text-blue-600 hover:border-slate-300',
@@ -132,7 +149,8 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center gap-3">
           <Link
             href="/booking"
-            className="inline-flex items-center justify-center text-sm font-medium text-blue-500 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            prefetch={true}
+            className="inline-flex items-center justify-center text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-lg transition-colors outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             Ajukan Reservasi
           </Link>
@@ -142,13 +160,15 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center text-sm font-medium text-slate-700 hover:text-blue-600 hover:bg-slate-50 border border-slate-300 px-3.5 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                prefetch={true}
+                className="inline-flex items-center justify-center text-sm font-medium text-slate-700 hover:text-blue-600 hover:bg-slate-50 border border-slate-300 px-3.5 py-2 rounded-lg transition-colors outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Masuk
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center text-sm font-medium text-white bg-blue-800 hover:bg-blue-900 px-3.5 py-2 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                prefetch={true}
+                className="inline-flex items-center justify-center text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 px-3.5 py-2 rounded-lg shadow-sm transition-colors outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Daftar
               </Link>
@@ -159,30 +179,38 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => setIsUserMenuOpen((prev) => !prev)}
-                className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-xs outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
                 aria-expanded={isUserMenuOpen}
                 aria-haspopup="true"
                 aria-label="Menu akun pengguna"
               >
-                <div className="w-8 h-8 rounded-full bg-blue-800 text-white font-semibold text-xs flex items-center justify-center shadow-sm">
-                  {getInitials(user.name)}
+                <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0 overflow-hidden">
+                  {user.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    (user.username || user.usernameSSO || user.name || 'R').charAt(0).toUpperCase()
+                  )}
                 </div>
-                <div className="flex flex-col text-left max-w-[130px]">
-                  <span className="text-xs font-semibold text-slate-900 truncate">
-                    {user.name}
-                  </span>
-                  <span className="text-[10px] text-slate-500 truncate">
-                    {user.email}
-                  </span>
-                </div>
+                <span className="text-xs font-semibold text-slate-800 tracking-tight">
+                  {user.username || user.usernameSSO || (user.email ? user.email.split('@')[0] : 'penyewa')}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-slate-100 text-slate-700">
+                  {user.role === 'admin' ? 'ADMIN' : 'PENYEWA'}
+                </span>
                 <svg
-                  className={`w-4 h-4 text-slate-500 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''
-                    }`}
+                  className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                    isUserMenuOpen ? 'rotate-180' : ''
+                  }`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
@@ -207,16 +235,29 @@ export default function Navbar() {
                       Profil Saya
                     </Link>
 
-                    <Link
-                      href="/booking"
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-400 transition-colors"
-                    >
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      Ajukan Reservasi
-                    </Link>
+                    {user.role === 'admin' ? (
+                      <Link
+                        href="/dashboard/penyewa"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-indigo-700 hover:bg-indigo-50 font-medium transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                        </svg>
+                        Dashboard Pengelola
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/profile#reservasi"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        Reservasi Saya
+                      </Link>
+                    )}
                   </div>
 
                   <div className="border-t border-slate-100 py-1">
@@ -245,7 +286,7 @@ export default function Navbar() {
             aria-expanded={isOpen}
             aria-controls="mobile-nav-menu"
             aria-label="Toggle navigation menu"
-            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             {isOpen ? (
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -270,8 +311,17 @@ export default function Navbar() {
           {user ? (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-500 text-white font-bold text-xs flex items-center justify-center">
-                  {getInitials(user.name)}
+                <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                  {user.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    getInitials(user.name)
+                  )}
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-slate-900">{user.name}</span>
@@ -290,15 +340,17 @@ export default function Navbar() {
             <div className="grid grid-cols-2 gap-2 pt-1 pb-2">
               <Link
                 href="/login"
+                prefetch={true}
                 onClick={closeMenu}
-                className="w-full inline-flex items-center justify-center border border-slate-300 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                className="w-full inline-flex items-center justify-center border border-slate-300 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-semibold transition-colors outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Masuk
               </Link>
               <Link
                 href="/register"
+                prefetch={true}
                 onClick={closeMenu}
-                className="w-full inline-flex items-center justify-center  hover:bg-blue-300 text-white px-3 p y-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                className="w-full inline-flex items-center justify-center bg-blue-700 hover:bg-blue-800 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Daftar
               </Link>
@@ -312,9 +364,10 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  onClick={closeMenu}
+                  prefetch={true}
+                  onClick={(e) => handleNavClick(e, link.href)}
                   className={[
-                    'px-3.5 py-2.5 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'px-3.5 py-2.5 rounded-lg text-sm transition-colors outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                     active
                       ? 'bg-blue-50 text-blue-700 font-semibold border-l-4 border-blue-600 pl-2.5'
                       : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50 font-medium',
@@ -330,8 +383,9 @@ export default function Navbar() {
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
             <Link
               href="/booking"
+              prefetch={true}
               onClick={closeMenu}
-              className="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg shadow-sm transition-colors text-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Ajukan Reservasi
             </Link>
@@ -340,7 +394,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full inline-flex items-center justify-center border border-red-200 text-red-600 hover:bg-red-50 font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+                className="w-full inline-flex items-center justify-center border border-red-200 text-red-600 hover:bg-red-50 font-medium px-4 py-2 rounded-lg transition-colors text-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               >
                 Keluar dari Akun
               </button>

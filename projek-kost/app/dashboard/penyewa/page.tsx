@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getAuthUser, AuthUser } from "@/lib/auth";
 import {
   Search,
   Plus,
@@ -11,7 +14,28 @@ import {
 } from "lucide-react";
 import { useDashboard, formatRupiah } from "@/lib/dashboardContext";
 import { Tenant, Room } from "@/types/dashboard";
+import { Room as CatalogRoom } from "@/types/room";
 import KtpModal from "@/components/dashboard/KtpModal";
+import { getAllReservationsAction, updateReservationStatusAction, deleteReservationAction } from "@/actions/booking";
+import { getRoomsAction, createRoomAction, updateRoomAction, deleteRoomAction } from "@/actions/room";
+
+interface IncomingReservation {
+  id: string;
+  fullName: string;
+  email: string;
+  whatsapp: string;
+  checkInDate: Date | string;
+  durationMonths: number;
+  totalPrice: number;
+  notes?: string | null;
+  status: string;
+  createdAt: Date | string;
+  room?: {
+    name: string;
+    location: string;
+    price: number;
+  } | null;
+}
 
 type ModalType = "add" | "edit" | "ktp" | "move" | "discount" | "checkout" | null;
 
@@ -35,6 +59,19 @@ const BLANK_FORM: Omit<Tenant, "id"> = {
 };
 
 export default function PenyewaPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  useEffect(() => {
+    const user = getAuthUser();
+    if (!user) {
+      router.push('/login?redirect=/dashboard/penyewa');
+    } else {
+      setCurrentUser(user);
+      setIsAuthChecking(false);
+    }
+  }, [router]);
   const {
     tenants,
     rooms,
@@ -48,6 +85,163 @@ export default function PenyewaPage() {
 
   // 1. State filter & modal aktif
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<'penghuni' | 'reservasi' | 'kamar'>('penghuni');
+  const [incomingReservations, setIncomingReservations] = useState<IncomingReservation[]>([]);
+  const [isLoadingReservations, setIsLoadingReservations] = useState(false);
+
+  // State Manajemen Kamar Kos (Entitas Room - PostgreSQL)
+  const [dbRoomsList, setDbRoomsList] = useState<CatalogRoom[]>([]);
+  const [isLoadingDbRooms, setIsLoadingDbRooms] = useState(false);
+  const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+  const [roomModalMode, setRoomModalMode] = useState<'create' | 'edit'>('create');
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [roomFormData, setRoomFormData] = useState({
+    name: '',
+    price: '',
+    type: '' as CatalogRoom['type'],
+    description: '',
+    location: '',
+    facilities: '',
+    imageUrl: '',
+    isAvailable: true,
+  });
+  const [roomFormErrors, setRoomFormErrors] = useState<Record<string, string[] | undefined>>({});
+  const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
+  const [crudNotice, setCrudNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const fetchDbRooms = async () => {
+    setIsLoadingDbRooms(true);
+    try {
+      const res = await getRoomsAction();
+      if (res.success && res.data) {
+        setDbRoomsList(res.data);
+      }
+    } finally {
+      setIsLoadingDbRooms(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      setIsLoadingReservations(true);
+      getAllReservationsAction()
+        .then((res) => {
+          if (res.success && res.data) {
+            setIncomingReservations(res.data as unknown as IncomingReservation[]);
+          }
+        })
+        .finally(() => setIsLoadingReservations(false));
+
+      fetchDbRooms();
+    }
+  }, [currentUser]);
+
+  const handleUpdateReservationStatus = async (id: string, newStatus: string) => {
+    const res = await updateReservationStatusAction(id, newStatus);
+    if (res.success) {
+      setIncomingReservations((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      );
+      setCrudNotice({ type: 'success', message: `Status reservasi berhasil diubah ke ${newStatus}.` });
+      setTimeout(() => setCrudNotice(null), 3000);
+    }
+  };
+
+  const handleDeleteReservation = async (id: string) => {
+    if (window.confirm('Hapus riwayat reservasi ini secara permanen?')) {
+      const res = await deleteReservationAction(id);
+      if (res.success) {
+        setIncomingReservations((prev) => prev.filter((r) => r.id !== id));
+        setCrudNotice({ type: 'success', message: 'Data reservasi berhasil dihapus.' });
+        setTimeout(() => setCrudNotice(null), 3500);
+      } else {
+        alert(res.message || 'Gagal menghapus reservasi.');
+      }
+    }
+  };
+
+  const handleOpenCreateRoom = () => {
+    setRoomModalMode('create');
+    setEditingRoomId(null);
+    setRoomFormData({
+      name: '',
+      price: '',
+      type: '' as CatalogRoom['type'],
+      description: '',
+      location: '',
+      facilities: 'AC, WiFi Cepat, Kamar Mandi Dalam',
+      imageUrl: '',
+      isAvailable: true,
+    });
+    setRoomFormErrors({});
+    setIsRoomModalOpen(true);
+  };
+
+  const handleOpenEditRoom = (room: CatalogRoom) => {
+    setRoomModalMode('edit');
+    setEditingRoomId(room.id);
+    setRoomFormData({
+      name: room.name,
+      price: String(room.price),
+      type: room.type,
+      description: room.description || '',
+      location: room.location,
+      facilities: room.facilities.join(', '),
+      imageUrl: room.imageUrl,
+      isAvailable: room.isAvailable,
+    });
+    setRoomFormErrors({});
+    setIsRoomModalOpen(true);
+  };
+
+  const handleSaveRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingRoom(true);
+    setRoomFormErrors({});
+
+    try {
+      if (roomModalMode === 'create') {
+        const res = await createRoomAction(roomFormData);
+        if (res.success && res.data) {
+          setDbRoomsList((prev) => [res.data!, ...prev]);
+          setIsRoomModalOpen(false);
+          setCrudNotice({ type: 'success', message: res.message });
+          setTimeout(() => setCrudNotice(null), 3500);
+        } else if (res.errors) {
+          setRoomFormErrors(res.errors);
+        } else {
+          alert(res.message);
+        }
+      } else if (roomModalMode === 'edit' && editingRoomId) {
+        const res = await updateRoomAction(editingRoomId, roomFormData);
+        if (res.success) {
+          await fetchDbRooms();
+          setIsRoomModalOpen(false);
+          setCrudNotice({ type: 'success', message: res.message });
+          setTimeout(() => setCrudNotice(null), 3500);
+        } else if (res.errors) {
+          setRoomFormErrors(res.errors);
+        } else {
+          alert(res.message);
+        }
+      }
+    } finally {
+      setIsSubmittingRoom(false);
+    }
+  };
+
+  const handleDeleteRoom = async (room: CatalogRoom) => {
+    if (window.confirm(`Hapus kamar "${room.name}" secara permanen? Seluruh riwayat reservasi terkait kamar ini juga akan terhapus otomatis.`)) {
+      const res = await deleteRoomAction(room.id);
+      if (res.success) {
+        setDbRoomsList((prev) => prev.filter((r) => r.id !== room.id));
+        setCrudNotice({ type: 'success', message: res.message });
+        setTimeout(() => setCrudNotice(null), 3500);
+      } else {
+        alert(res.message);
+      }
+    }
+  };
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
 
@@ -157,8 +351,71 @@ export default function PenyewaPage() {
     parsedDiscount <= 0 ||
     parsedDiscount > selectedTenant.biayaSewa;
 
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-sm text-slate-500 flex items-center gap-2">
+          <svg className="animate-spin h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          Memverifikasi hak akses admin...
+        </div>
+      </div>
+    );
+  }
+
+  // Proteksi Hak Akses (RBAC): Hanya Peran 'admin' yang Boleh Mengakses
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center p-6 bg-slate-50">
+        <div className="w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4 shadow-sm">
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 mb-3 border border-red-200">
+          HTTP 403 Forbidden • Akses Terbatas
+        </span>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2">
+          Area Khusus Pengelola Kos (Admin)
+        </h1>
+        <p className="text-sm text-slate-600 max-w-lg mb-6 leading-relaxed">
+          Akun Anda saat ini masuk sebagai <strong className="text-slate-900 font-semibold">{currentUser?.name || 'Pengguna'}</strong> dengan peran <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono text-xs font-semibold">Penyewa</span>. Sesuai matriks kontrol akses (RBAC), Anda tidak memiliki izin untuk mengelola kamar atau melihat dokumen identitas KTP penghuni lain.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/profile"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors shadow-sm"
+          >
+            Kembali ke Profil Saya
+          </Link>
+          <Link
+            href="/"
+            className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-semibold transition-colors"
+          >
+            Ke Beranda R-Stay
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className={`min-h-screen py-8 sm:py-10 ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        {/* Notifikasi Hasil Operasi CRUD */}
+      {crudNotice && (
+        <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between border animate-fadeIn ${
+          crudNotice.type === 'success'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            : 'bg-rose-50 text-rose-800 border-rose-200'
+        }`}>
+          <span>{crudNotice.message}</span>
+          <button onClick={() => setCrudNotice(null)} className="font-bold px-2 py-0.5 hover:opacity-75 cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -166,20 +423,319 @@ export default function PenyewaPage() {
             className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}
             style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif" }}
           >
-            Data Penyewa
+            {activeTab === 'penghuni'
+              ? 'Data Penyewa'
+              : activeTab === 'reservasi'
+              ? 'Pengajuan Reservasi Masuk'
+              : 'Manajemen Kamar Kos'}
           </h1>
           <p className={`mt-1 text-base ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
-            {tenants.length} penghuni aktif terdaftar di sistem
+            {activeTab === 'penghuni'
+              ? `${tenants.length} penghuni aktif terdaftar di sistem`
+              : activeTab === 'reservasi'
+              ? `${incomingReservations.length} permohonan booking tercatat di sistem`
+              : `${dbRoomsList.length} unit kamar kos terdaftar di sistem`}
           </p>
         </div>
+
+        {activeTab === 'penghuni' && (
+          <button
+            onClick={() => openModal("add")}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E3A8A] text-white font-bold text-[14px] hover:bg-blue-800 transition-colors shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Tambah Penyewa
+          </button>
+        )}
+
+        {activeTab === 'kamar' && (
+          <button
+            onClick={handleOpenCreateRoom}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[14px] shadow-sm transition-colors shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Tambah Kamar Kos
+          </button>
+        )}
+      </div>
+
+      {/* Tab Navigasi Meja Kerja Admin */}
+      <div className="flex items-center gap-3 border-b border-slate-200 overflow-x-auto pb-1">
         <button
-          onClick={() => openModal("add")}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E3A8A] text-white font-bold text-[14px] hover:bg-blue-800 transition-colors shrink-0"
+          type="button"
+          onClick={() => setActiveTab('penghuni')}
+          className={`flex items-center gap-2 pb-3 px-3 text-sm font-bold border-b-2 transition-colors cursor-pointer shrink-0 ${
+            activeTab === 'penghuni'
+              ? 'border-[#1E3A8A] text-[#1E3A8A]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
         >
-          <Plus className="w-4 h-4" /> Tambah Penyewa
+          <Users className="w-4 h-4" />
+          <span>Data Penghuni Aktif ({tenants.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('reservasi')}
+          className={`flex items-center gap-2 pb-3 px-3 text-sm font-bold border-b-2 transition-colors cursor-pointer shrink-0 ${
+            activeTab === 'reservasi'
+              ? 'border-[#1E3A8A] text-[#1E3A8A]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>📥 Permohonan Booking Masuk</span>
+          {incomingReservations.filter((r) => r.status === 'PENDING').length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-500 text-white animate-pulse">
+              {incomingReservations.filter((r) => r.status === 'PENDING').length} Baru
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('kamar')}
+          className={`flex items-center gap-2 pb-3 px-3 text-sm font-bold border-b-2 transition-colors cursor-pointer shrink-0 ${
+            activeTab === 'kamar'
+              ? 'border-[#1E3A8A] text-[#1E3A8A]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>🏠 Kelola Kamar Kos</span>
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            {dbRoomsList.length} Unit
+          </span>
         </button>
       </div>
 
+      {activeTab === 'kamar' ? (
+        <div className={`rounded-xl overflow-hidden border p-5 space-y-4 ${isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-[#E5E7EB]"}`}>
+          <div className="border-b border-slate-100 pb-3">
+            <h2 className={`text-base font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+              Daftar Unit Kamar Kos
+            </h2>
+            <p className={`text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+              Kelola ketersediaan, tarif sewa bulanan, dan fasilitas unit kamar kos
+            </p>
+          </div>
+
+          {isLoadingDbRooms ? (
+            <div className="py-12 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Memuat data kamar kos...
+            </div>
+          ) : dbRoomsList.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className={`border-b text-xs font-semibold ${isDarkMode ? "bg-slate-900/50 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
+                    <th className="py-3 px-4">Kamar Kos</th>
+                    <th className="py-3 px-4">Tipe</th>
+                    <th className="py-3 px-4">Lokasi</th>
+                    <th className="py-3 px-4">Harga / Bulan</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-center">Tindakan Admin</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {dbRoomsList.map((room) => (
+                    <tr key={room.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={room.imageUrl}
+                            alt={room.name}
+                            className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
+                          />
+                          <div>
+                            <div className="font-bold text-slate-900">{room.name}</div>
+                            <div className="text-xs text-slate-400 font-mono">ID: {room.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          room.type === 'Putra'
+                            ? 'bg-blue-100 text-blue-800'
+                            : room.type === 'Putri'
+                            ? 'bg-pink-100 text-pink-800'
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          Kos {room.type}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-slate-600 max-w-xs truncate">
+                        {room.location}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-blue-700">{formatRupiah(room.price)}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                          room.isAvailable
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {room.isAvailable ? '✓ Tersedia' : 'Penuh'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditRoom(room)}
+                            className="px-2.5 py-1.5 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRoom(room)}
+                            className="px-2.5 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            🗑️ Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-slate-500 space-y-2">
+              <div className="text-2xl">🏨</div>
+              <p className="text-sm font-semibold text-slate-700">Belum Ada Kamar Kos Terdaftar</p>
+              <button
+                onClick={handleOpenCreateRoom}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-pointer"
+              >
+                + Tambah Kamar Sekarang
+              </button>
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'reservasi' ? (
+        <div className={`rounded-xl overflow-hidden border p-5 space-y-4 ${isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-[#E5E7EB]"}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className={`text-base font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                Daftar Permohonan Booking dari Website
+              </h2>
+              <p className={`text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+                Permohonan sewa kamar yang diajukan calon penyewa melalui form reservasi online R-Stay
+              </p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg">
+              Total: {incomingReservations.length} Pengajuan
+            </span>
+          </div>
+
+          {isLoadingReservations ? (
+            <div className="py-12 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Memuat data reservasi masuk...
+            </div>
+          ) : incomingReservations.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className={`border-b text-xs font-semibold ${isDarkMode ? "bg-slate-900/50 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
+                    <th className="py-3 px-4">Calon Penyewa</th>
+                    <th className="py-3 px-4">Kamar Target</th>
+                    <th className="py-3 px-4">Mulai Sewa &amp; Durasi</th>
+                    <th className="py-3 px-4">Estimasi Biaya</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-center">Tindakan Admin</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {incomingReservations.map((res) => (
+                    <tr key={res.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900">{res.fullName}</div>
+                        <div className="text-xs text-slate-500 font-mono">{res.email}</div>
+                        <div className="text-xs text-emerald-700 font-medium">WA: {res.whatsapp}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-slate-800">{res.room?.name || 'Kamar R-Stay'}</div>
+                        <div className="text-xs text-slate-500">{res.room?.location}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-slate-600">
+                        <div>{new Date(res.checkInDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                        <span className="font-semibold text-slate-800">{res.durationMonths} Bulan</span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-blue-700">{formatRupiah(res.totalPrice)}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                          res.status === 'CONFIRMED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : res.status === 'CANCELLED'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-amber-100 text-amber-800 animate-pulse'
+                        }`}>
+                          {res.status === 'CONFIRMED' ? 'Disetujui' : res.status === 'CANCELLED' ? 'Ditolak' : 'Menunggu Konfirmasi'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {res.status === 'PENDING' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateReservationStatus(res.id, 'CONFIRMED')}
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                title="Setujui permohonan reservasi"
+                              >
+                                ✓ Setujui
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateReservationStatus(res.id, 'CANCELLED')}
+                                className="px-2.5 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                                title="Tolak permohonan reservasi"
+                              >
+                                ✕ Tolak
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic mr-1">Telah diproses</span>
+                          )}
+
+                          {/* Tombol Hapus Reservasi */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReservation(res.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Hapus data reservasi"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-slate-500 space-y-2">
+              <div className="text-2xl">📭</div>
+              <p className="text-sm font-semibold text-slate-700">Belum Ada Permohonan Reservasi Masuk</p>
+              <p className="text-xs text-slate-400">Semua permohonan booking dari website akan muncul di sini secara otomatis.</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       {/* Kotak Pencarian */}
       <div
         className={`rounded-2xl border p-4 ${isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
@@ -381,6 +937,9 @@ export default function PenyewaPage() {
           )}
         </div>
       </div>
+
+        </>
+      )}
 
       {/* 1. Modal Tambah / Edit Penyewa */}
       {(activeModal === "add" || activeModal === "edit") && (
@@ -732,6 +1291,303 @@ export default function PenyewaPage() {
           onClose={closeModal}
         />
       )}
+
+      {/* 6. Modal Tambah / Edit Kamar Kos (PostgreSQL Zod Validation) */}
+      {isRoomModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+                  🏨
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-950">
+                    {roomModalMode === 'create' ? 'Tambah Kamar Kos Baru' : 'Edit Data Kamar Kos'}
+                  </h3>
+                  <p className="text-[11px] text-emerald-700">Tersimpan otomatis dan terhubung ke katalog publik</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRoomModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRoom} noValidate className="p-6 space-y-4 overflow-y-auto">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Judul / Nama Kamar Kos *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={roomFormData.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRoomFormData({ ...roomFormData, name: val });
+                    const trimmedLower = val.trim().toLowerCase();
+                    const isDup =
+                      trimmedLower === 'kost griya asri deluxe' ||
+                      trimmedLower === 'kost ajolie executive' ||
+                      trimmedLower === 'kost putri melati cantika' ||
+                      dbRoomsList.some((r) => r.name.trim().toLowerCase() === trimmedLower);
+
+                    if (isDup) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        name: ['Judul sudah dipakai item lain.'],
+                      }));
+                    } else if (trimmedLower.length > 0 && trimmedLower.length < 3) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        name: ['Judul minimal 3 karakter.'],
+                      }));
+                    } else {
+                      setRoomFormErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.name;
+                        return copy;
+                      });
+                    }
+                  }}
+                  onBlur={() => {
+                    const trimmedLower = roomFormData.name.trim().toLowerCase();
+                    const isDup =
+                      trimmedLower === 'kost griya asri deluxe' ||
+                      trimmedLower === 'kost ajolie executive' ||
+                      trimmedLower === 'kost putri melati cantika' ||
+                      dbRoomsList.some((r) => r.name.trim().toLowerCase() === trimmedLower);
+
+                    if (isDup) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        name: ['Judul sudah dipakai item lain.'],
+                      }));
+                    } else if (trimmedLower.length > 0 && trimmedLower.length < 3) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        name: ['Judul minimal 3 karakter.'],
+                      }));
+                    }
+                  }}
+                  placeholder="Contoh: Kost Griya Asri Deluxe"
+                  className={`w-full px-3.5 py-2.5 rounded-lg border text-sm text-slate-800 focus:outline-none focus:ring-2 transition-colors ${
+                    roomFormErrors.name
+                      ? 'border-red-500 focus:ring-red-400 bg-red-50/20'
+                      : 'border-slate-200 focus:ring-emerald-500'
+                  }`}
+                />
+                {roomFormErrors.name && (
+                  <p className="text-xs text-red-600 mt-1 font-semibold animate-in fade-in">
+                    {roomFormErrors.name[0]}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Harga Sewa / Bulan (Rp) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={roomFormData.price}
+                    onChange={(e) => setRoomFormData({ ...roomFormData, price: e.target.value })}
+                    placeholder="Contoh: 1750000"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  {roomFormErrors.price && (
+                    <p className="text-xs text-red-600 mt-1">{roomFormErrors.price[0]}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Kategori / Tipe Kos *
+                  </label>
+                  <select
+                    value={roomFormData.type}
+                    onChange={(e) => setRoomFormData({ ...roomFormData, type: e.target.value as CatalogRoom['type'] })}
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  >
+                    <option value="">-- Pilih salah satu kategori --</option>
+                    <option value="Campur">Campur</option>
+                    <option value="Putra">Putra</option>
+                    <option value="Putri">Putri</option>
+                  </select>
+                  {roomFormErrors.type && (
+                    <p className="text-xs text-red-600 mt-1">{roomFormErrors.type[0]}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Deskripsi Kamar *
+                  </label>
+                  <span
+                    className={`text-[11px] font-mono transition-colors ${
+                      roomFormData.description.trim().length > 0 && roomFormData.description.trim().length < 10
+                        ? 'text-red-600 font-bold'
+                        : roomFormData.description.length > 300
+                        ? 'text-red-600 font-bold'
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    {roomFormData.description.length} / 300 karakter (min. 10)
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={roomFormData.description}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRoomFormData({ ...roomFormData, description: val });
+                    const trimmed = val.trim();
+                    if (trimmed.length > 0 && trimmed.length < 10) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        description: ['Deskripsi minimal 10 karakter.'],
+                      }));
+                    } else if (val.length > 300) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        description: ['Deskripsi maksimal 300 karakter.'],
+                      }));
+                    } else {
+                      setRoomFormErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.description;
+                        return copy;
+                      });
+                    }
+                  }}
+                  onBlur={() => {
+                    const trimmed = roomFormData.description.trim();
+                    if (trimmed.length > 0 && trimmed.length < 10) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        description: ['Deskripsi minimal 10 karakter.'],
+                      }));
+                    } else if (trimmed.length === 0) {
+                      setRoomFormErrors((prev) => ({
+                        ...prev,
+                        description: ['Deskripsi minimal 10 karakter.'],
+                      }));
+                    }
+                  }}
+                  placeholder="Tuliskan deskripsi lengkap kamar kos (10 - 300 karakter)"
+                  className={`w-full px-3.5 py-2.5 rounded-lg border text-sm text-slate-800 focus:outline-none focus:ring-2 transition-colors ${
+                    roomFormErrors.description
+                      ? 'border-red-500 focus:ring-red-400 bg-red-50/20'
+                      : 'border-slate-200 focus:ring-emerald-500'
+                  }`}
+                />
+                {roomFormErrors.description && (
+                  <p className="text-xs text-red-600 mt-1 font-medium animate-in fade-in">
+                    {roomFormErrors.description[0]}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Lokasi Alamat Kos *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={roomFormData.location}
+                  onChange={(e) => setRoomFormData({ ...roomFormData, location: e.target.value })}
+                  placeholder="Contoh: Kebayoran Baru, Jakarta Selatan"
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                {roomFormErrors.location && (
+                  <p className="text-xs text-red-600 mt-1">{roomFormErrors.location[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Fasilitas Kamar (Pisahkan dengan koma)
+                </label>
+                <input
+                  type="text"
+                  value={roomFormData.facilities}
+                  onChange={(e) => setRoomFormData({ ...roomFormData, facilities: e.target.value })}
+                  placeholder="AC, WiFi, Kamar Mandi Dalam, Kasur Springbed"
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                {roomFormErrors.facilities && (
+                  <p className="text-xs text-red-600 mt-1">{roomFormErrors.facilities[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  URL Foto Kamar (Opsional)
+                </label>
+                <input
+                  type="url"
+                  value={roomFormData.imageUrl}
+                  onChange={(e) => setRoomFormData({ ...roomFormData, imageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="isAvailableCheckbox"
+                  checked={roomFormData.isAvailable}
+                  onChange={(e) => setRoomFormData({ ...roomFormData, isAvailable: e.target.checked })}
+                  className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="isAvailableCheckbox" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Kamar Siap Dihuni / Tersedia untuk Pemesanan
+                </label>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRoomModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRoom}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isSubmittingRoom ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Menyimpan...
+                    </>
+                  ) : roomModalMode === 'create' ? (
+                    'Tambah Kamar'
+                  ) : (
+                    'Simpan Perubahan'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

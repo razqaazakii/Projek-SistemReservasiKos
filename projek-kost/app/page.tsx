@@ -1,19 +1,31 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { roomsData } from '@/data/roomsData';
+import { Room } from '@/types/room';
 import RoomCard from '@/components/rooms/RoomCard';
 import Button from '@/components/ui/Button';
+import { getRoomsAction } from '@/actions/room';
 
 export default function CatalogPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('Semua');
+  const [rooms, setRooms] = useState<Room[]>(roomsData);
+
+  // Ambil data kamar persisten dari database PostgreSQL
+  useEffect(() => {
+    getRoomsAction().then((res) => {
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setRooms(res.data);
+      }
+    });
+  }, []);
 
   const filterOptions = ['Semua', 'Putra', 'Putri', 'Campur'];
 
   // Filter daftar kamar berdasarkan nama/lokasi dan tipe kos
   const filteredRooms = useMemo(() => {
-    return roomsData.filter((room) => {
+    return rooms.filter((room) => {
       const matchesSearch =
         room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         room.location.toLowerCase().includes(searchQuery.toLowerCase());
@@ -23,7 +35,7 @@ export default function CatalogPage() {
 
       return matchesSearch && matchesType;
     });
-  }, [searchQuery, selectedType]);
+  }, [searchQuery, selectedType, rooms]);
 
   const resetFilters = () => {
     setSearchQuery('');
@@ -48,12 +60,12 @@ export default function CatalogPage() {
             </span>
 
             {/* Judul Utama */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-tight [text-shadow:_0_2px_14px_rgba(0,0,0,0.85),_0_1px_4px_rgba(0,0,0,0.9)]">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-tight [text-shadow:0_2px_14px_rgba(0,0,0,0.85),0_1px_4px_rgba(0,0,0,0.9)]">
               Temukan Hunian Kos Nyaman &amp; Strategis
             </h1>
 
             {/* Subtitel Penjelasan */}
-            <p className="mt-4 max-w-2xl mx-auto text-sm sm:text-base text-white font-medium leading-relaxed [text-shadow:_0_1px_8px_rgba(0,0,0,0.85)]">
+            <p className="mt-4 max-w-2xl mx-auto text-sm sm:text-base text-white font-medium leading-relaxed [text-shadow:0_1px_8px_rgba(0,0,0,0.85)]">
               Pilihan kamar kos terbaik dengan transparansi harga, spesifikasi lengkap, dan kemudahan proses reservasi langsung secara daring.
             </p>
           </div>

@@ -5,11 +5,13 @@ import { notFound } from 'next/navigation';
 import { roomsData } from '@/data/roomsData';
 import { Room } from '@/types/room';
 import Badge from '@/components/ui/Badge';
+import { prisma } from '@/lib/prisma';
 
 interface RoomDetailPageProps {
   params: Promise<{
     id: string;
   }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export async function generateStaticParams() {
@@ -30,7 +32,61 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
     await new Promise((resolve) => setTimeout(resolve, 8000));
   }
 
-  const room = roomsData.find((r: Room) => r.id === id);
+  // 1. Ambil data kamar dari PostgreSQL dengan fallback ke roomsData
+  let room: Room | undefined = undefined;
+
+  try {
+    const dbRoom = await prisma.room.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+    });
+
+    if (dbRoom) {
+      const fallback = roomsData.find(
+        (r: Room) => r.id === dbRoom.slug || r.id === dbRoom.id || r.name === dbRoom.name
+      );
+
+      room = {
+        id: dbRoom.id,
+        name: dbRoom.name,
+        price: dbRoom.price,
+        location: dbRoom.location,
+        type: (['Putra', 'Putri', 'Campur'].includes(dbRoom.type)
+          ? dbRoom.type
+          : 'Campur') as Room['type'],
+        facilities: dbRoom.facilities.length > 0 ? dbRoom.facilities : (fallback?.facilities || []),
+        isAvailable: dbRoom.isAvailable,
+        imageUrl:
+          dbRoom.images && dbRoom.images.length > 0
+            ? dbRoom.images[0]
+            : (fallback?.imageUrl ||
+              'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=800'),
+        description:
+          fallback?.description ||
+          `Hunian kos nyaman dan strategis berlokasi di ${dbRoom.location}. Dilengkapi fasilitas esensial untuk kenyamanan aktivitas sehari-hari Anda.`,
+        rules: fallback?.rules || [
+          'Dilarang merokok di dalam kamar.',
+          'Menjaga ketenangan dan kebersihan lingkungan bersama.',
+          'Tamu lawan jenis dilarang menginap.',
+        ],
+        rating: fallback?.rating || 4.8,
+        specs: fallback?.specs || {
+          size: '3x4 meter',
+          bedType: 'Single Bed',
+          electricity: 'Termasuk listrik',
+          bathroom: 'Kamar Mandi Dalam',
+        },
+      };
+    }
+  } catch (err) {
+    console.warn('Kendala memuat kamar dari database, menggunakan fallback lokal:', err);
+  }
+
+  // 2. Jika tidak ditemukan di database atau query error, gunakan fallback data lokal
+  if (!room) {
+    room = roomsData.find((r: Room) => r.id === id);
+  }
 
   if (!room) {
     notFound();
@@ -51,7 +107,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
       <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-sm text-slate-600">
         <Link
           href="/rooms"
-          className="hover:text-blue-600 underline font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+          className="hover:text-blue-600 underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
         >
           Katalog Kos
         </Link>
@@ -201,6 +257,19 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
             </ul>
           </section>
 
+          {/* Lokasi Alamat Kos */}
+          <section
+            aria-labelledby="section-lokasi"
+            className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-2"
+          >
+            <h2 id="section-lokasi" className="text-xl font-bold text-slate-900">
+              Alamat &amp; Lokasi Kos
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {room.location}
+            </p>
+          </section>
+
           {/* Aturan & Tata Tertib Kos */}
           {room.rules && room.rules.length > 0 && (
             <section
@@ -223,8 +292,8 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
 
         {/* Kolom Kanan: Sticky Booking Card & CTA */}
         <aside className="lg:col-span-4 sticky top-24">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-md">
-            <div className="mb-4 pb-4 border-b border-slate-100">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-md space-y-4">
+            <div className="pb-4 border-b border-slate-100">
               <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">
                 Biaya Sewa
               </span>
@@ -236,7 +305,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
               </div>
             </div>
 
-            <div className="space-y-3 mb-6 text-xs text-slate-600">
+            <div className="space-y-3 text-xs text-slate-600">
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span>Status Ketersediaan:</span>
                 <span className={`font-semibold ${room.isAvailable ? 'text-emerald-700' : 'text-slate-600'}`}>
@@ -256,7 +325,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
             {room.isAvailable ? (
               <Link
                 href={`/booking?roomId=${room.id}`}
-                className="w-full inline-flex items-center justify-center px-6 py-3.5 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="w-full inline-flex items-center justify-center px-6 py-3.5 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl transition-colors shadow-md outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 aria-label={`Ajukan reservasi untuk kamar ${room.name}`}
               >
                 Ajukan Reservasi Sekarang
@@ -271,12 +340,15 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
               </button>
             )}
 
-            <div className="mt-4 text-center">
+            <div className="pt-2 text-center">
               <Link
                 href="/rooms"
-                className="text-xs font-semibold text-slate-600 hover:text-blue-600 underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-600 underline outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
               >
-                ← Kembali ke Katalog Kamar
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Kembali ke Katalog Kamar</span>
               </Link>
             </div>
           </div>

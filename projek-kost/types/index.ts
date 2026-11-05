@@ -6,6 +6,7 @@ export type {
   Room,
   BookingFormData,
   BookingFormErrors,
+  ActionResponse,
 } from './room';
 
 export type {

@@ -1,30 +1,56 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { roomsData } from '@/data/roomsData';
+import { Room } from '@/types/room';
 import RoomCard from '@/components/rooms/RoomCard';
-import Button from '@/components/ui/Button';
+import Button from '@/components/ui/Button'; 
+import { getRoomsAction } from '@/actions/room';
 
 export default function RoomsCatalogPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('Semua');
 
+  // State Kamar Kos Terintegrasi Basis Data PostgreSQL
+  const [rooms, setRooms] = useState<Room[]>(roomsData);
+  const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(true);
+
+  // Ambil data kamar persisten dari database PostgreSQL
+  useEffect(() => {
+    let isMounted = true;
+    getRoomsAction()
+      .then((res) => {
+        if (isMounted && res.success && Array.isArray(res.data)) {
+          setRooms(res.data);
+          setIsLoadingRooms(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingRooms(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const filterOptions = ['Semua', 'Putra', 'Putri', 'Campur'];
 
-  // Filter daftar kamar berdasarkan nama/lokasi dan tipe kos
+  // Filter daftar kamar berdasarkan kata kunci (nama & lokasi) serta kategori tipe sewa
   const filteredRooms = useMemo(() => {
-    return roomsData.filter((room) => {
+    return rooms.filter((room) => {
       const matchesSearch =
         room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         room.location.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesType =
-        selectedType === 'Semua' || room.type.toLowerCase() === selectedType.toLowerCase();
+        selectedType === 'Semua' ||
+        room.type.toLowerCase() === selectedType.toLowerCase();
 
       return matchesSearch && matchesType;
     });
-  }, [searchQuery, selectedType]);
+  }, [searchQuery, selectedType, rooms]);
 
   const resetFilters = () => {
     setSearchQuery('');
@@ -38,7 +64,7 @@ export default function RoomsCatalogPage() {
         <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-sm text-slate-600">
           <Link
             href="/"
-            className="hover:text-blue-600 underline font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            className="hover:text-blue-600 underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
           >
             Beranda
           </Link>
@@ -52,10 +78,10 @@ export default function RoomsCatalogPage() {
             Pilihan Kamar Terverifikasi
           </span>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Katalog Kamar Kos R-Stay
+            Katalog Kamar Kos R-Stay   
           </h1>
           <p className="mt-2 text-base text-slate-600 max-w-2xl">
-            Jelajahi berbagai pilihan kamar kos putra, putri, dan campur dengan fasilitas lengkap dan harga transparan.
+            Jelajahi berbagai pilihan kamar kos putra, putri, dan campur dengan fasilitas lengkap dan transparansi harga.
           </p>
         </div>
 
@@ -95,7 +121,7 @@ export default function RoomsCatalogPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Contoh: Griya Asri, Sleman, UGM..."
+                  placeholder="Contoh: Griya Asri, Sleman, UGM, Dago, BSD..."
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition"
                 />
               </div>
@@ -118,11 +144,10 @@ export default function RoomsCatalogPage() {
                       key={type}
                       type="button"
                       onClick={() => setSelectedType(type)}
-                      className={`flex-1 min-w-[70px] py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                      }`}
+                      className={`flex-1 min-w-17.5 py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-all outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${isActive
+                        ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                        }`}
                     >
                       {type}
                     </button>
@@ -135,15 +160,21 @@ export default function RoomsCatalogPage() {
 
         {/* Ringkasan Hasil Pencarian */}
         <div className="flex items-center justify-between mb-6">
-          <p className="text-sm font-medium text-slate-600">
-            Menampilkan <span className="font-bold text-slate-900">{filteredRooms.length}</span> dari {roomsData.length} kamar
+          <p className="text-sm font-medium text-slate-600 flex items-center">
+            <span>Menampilkan <strong className="font-bold text-slate-900">{filteredRooms.length}</strong> dari {rooms.length} kamar</span>
+            {isLoadingRooms && (
+              <span className="text-xs text-blue-600 animate-pulse font-medium ml-2">
+                (Memperbarui data...)
+              </span>
+            )}
           </p>
           {(searchQuery || selectedType !== 'Semua') && (
             <button
+              type="button"
               onClick={resetFilters}
               className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
             >
-              Reset Filter
+              Reset Semua Filter
             </button>
           )}
         </div>
@@ -152,7 +183,10 @@ export default function RoomsCatalogPage() {
         {filteredRooms.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {filteredRooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
+              <RoomCard
+                key={room.id}
+                room={room}
+              />
             ))}
           </div>
         ) : (
@@ -168,9 +202,12 @@ export default function RoomsCatalogPage() {
             <p className="text-sm text-slate-500 mb-6">
               Tidak ada kamar yang sesuai dengan kriteria pencarian &quot;{searchQuery}&quot; atau tipe &quot;{selectedType}&quot;.
             </p>
-            <Button variant="secondary" onClick={resetFilters}>
+            <button
+              onClick={resetFilters}
+              className="px-4 py-2 bg-white text-blue-600 border border-blue-600 rounded-xl hover:bg-blue-50 transition font-medium text-sm"
+            >
               Reset Semua Filter
-            </Button>
+            </button>
           </div>
         )}
       </div>

@@ -19,8 +19,6 @@ Berikut adalah pemetaan skema validasi Zod (`lib/validations/room.ts`) yang dite
 | `facilities` | `string[]` (Checkbox / Tags) | `array(z.string()).min(1)` atau string transform | `"Minimal cantumkan 1 fasilitas kamar (contoh: AC, WiFi, Kasur)."` |
 | `imageUrl` | `string` (Input URL) | `url().optional().or(literal(''))` | `"Format URL gambar tidak valid."` |
 | `isAvailable` | `boolean` (Toggle Switch) | `z.boolean().default(true)` | Nilai default `true` |
-| `latitude` | `number` (Input Float) | `preprocess().nullable().optional()` | Format koordinat numerik |
-| `longitude` | `number` (Input Float) | `preprocess().nullable().optional()` | Format koordinat numerik |
 
 ---
 

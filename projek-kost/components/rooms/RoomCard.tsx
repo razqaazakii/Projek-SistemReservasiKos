@@ -9,7 +9,6 @@ export interface RoomCardProps {
 }
 
 // Mapping eksplisit dari room.type ke BadgeVariant
-// Mudah di-extend, type-safe, tidak rawan silent bug akibat string manipulation
 const TYPE_TO_BADGE: Record<string, BadgeVariant> = {
   'Kos Putra': 'putra',
   'Kos Putri': 'putri',
@@ -41,7 +40,6 @@ export default function RoomCard({ room }: RoomCardProps) {
         {/* Badges Overlay */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
           <Badge variant={badgeVariant} />
-          {/* Langsung pakai room.isAvailable tanpa alias tak perlu */}
           <Badge variant={room.isAvailable ? 'available' : 'unavailable'} />
         </div>
       </div>
@@ -88,7 +86,6 @@ export default function RoomCard({ room }: RoomCardProps) {
           {/* Fasilitas Utama (Maksimal 3 preview) */}
           <ul className="flex flex-wrap gap-1.5 mb-4" aria-label="Fasilitas utama kamar">
             {room.facilities.slice(0, 3).map((facility) => (
-              // Gunakan nilai fasilitas sebagai key, bukan index — lebih stabil saat list berubah
               <li
                 key={facility}
                 className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-medium"
@@ -104,36 +101,26 @@ export default function RoomCard({ room }: RoomCardProps) {
           </ul>
         </div>
 
-        {/* Footer Kartu: Harga & Tombol Navigasi */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-auto">
+        {/* Harga & Tombol Aksi */}
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between mt-auto">
           <div>
-            <span className="text-xs text-slate-600 block">Mulai dari</span>
-            <div className="text-base font-bold text-blue-800">
-              {formattedPrice}
-              <span className="text-xs font-normal text-slate-600"> /bln</span>
+            <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider block">
+              Mulai dari
+            </span>
+            <div className="flex items-baseline gap-0.5">
+              <span className="text-base font-bold text-slate-900">
+                {formattedPrice}
+              </span>
+              <span className="text-xs text-slate-600">/bln</span>
             </div>
           </div>
 
           <Link
             href={`/rooms/${room.id}`}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-500 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            aria-label={`Detail kamar ${room.name}`}
+            className="inline-flex items-center justify-center px-3.5 py-2 text-xs font-semibold text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            aria-label={`Lihat detail lengkap kamar ${room.name}`}
           >
-            <span>Detail</span>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
+            Lihat Detail
           </Link>
         </div>
       </div>

@@ -1,5 +1,3 @@
-// lib/mockData.ts
-// Re-export data kamar dari data/roomsData untuk kompatibilitas komponen
 import { roomsData } from "@/data/roomsData";
 import { Room } from "@/types/room";
 
