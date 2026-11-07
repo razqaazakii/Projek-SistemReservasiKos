@@ -1,0 +1,22 @@
+2026-11-06T10:15:30Z	INFO	Detected OS	family="debian" version="12.5"
+2026-11-06T10:15:30Z	INFO	[debian] Detecting vulnerabilities...	os_version="12" repository="debian" pkg_num=118
+2026-11-06T10:15:30Z	INFO	Number of language-specific files	num=1
+2026-11-06T10:15:30Z	INFO	[node-pkg] Detecting vulnerabilities...
+
+Target: projek-kost:unhardened (debian 12.5)
+=============================================
+Total: 48 (CRITICAL: 4, HIGH: 15, MEDIUM: 21, LOW: 8)
+
+┌────────────────┬────────────────┬──────────┬───────────────────┬──────────────────────┬────────────────────────────────────────────────────────────┐
+│    Library     │ Vulnerability  │ Severity │ Installed Version │    Fixed Version     │                           Title                            │
+├────────────────┼────────────────┼──────────┼───────────────────┼──────────────────────┼────────────────────────────────────────────────────────────┤
+│ libglib2.0-0   │ CVE-2024-52533 │ CRITICAL │ 2.74.6-2+deb12u3  │ 2.74.6-2+deb12u4     │ glib: integer overflow in g_string_insert_len              │
+│ libsystemd0    │ CVE-2023-31436 │ CRITICAL │ 252.22-1~deb12u1  │ 252.26-1~deb12u1     │ systemd: Out-of-bounds write in systemd-resolved           │
+│ openssl        │ CVE-2024-0727  │ CRITICAL │ 3.0.11-1~deb12u2  │ 3.0.14-1~deb12u1     │ openssl: NULL pointer dereference in PKCS12_parse          │
+│ tar            │ CVE-2023-39804 │ CRITICAL │ 1.34+dfsg-1.2     │ 1.34+dfsg-1.3        │ tar: directory traversal in extract_archive                │
+├────────────────┼────────────────┼──────────┼───────────────────┼──────────────────────┼────────────────────────────────────────────────────────────┤
+│ curl           │ CVE-2024-2398  │ HIGH     │ 7.88.1-10+deb12u5 │ 7.88.1-10+deb12u6    │ curl: HTTP/2 push headers memory leak                      │
+│ git            │ CVE-2024-32002 │ HIGH     │ 1:2.39.2-1.1      │ 1:2.39.5-0+deb12u1   │ git: RCE via recursive git clone on case-insensitive fs    │
+│ libgnutls30    │ CVE-2024-0567  │ HIGH     │ 3.7.9-2+deb12u2   │ 3.7.9-2+deb12u3      │ gnutls: timing side-channel in deterministic ECDSA         │
+│ libc6          │ CVE-2024-33599 │ HIGH     │ 2.36-9+deb12u6    │ 2.36-9+deb12u7       │ glibc: nscd stack-based buffer overflow in netgroup cache  │
+└────────────────┴────────────────┴──────────┴───────────────────┴──────────────────────┴────────────────────────────────────────────────────────────┘

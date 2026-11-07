@@ -1,0 +1,28 @@
+================================================================================
+Lynis Security Audit Tool (Report Sebelum Hardening)
+Target OS: Ubuntu 22.04.4 LTS (Linux 5.15.0-generic x86_64)
+Date     : 2026-11-06 09:30:12 UTC
+================================================================================
+
+[+] Initializing audit
+------------------------------------
+- Scanning system configuration...
+- Checking authentication methods...
+  [WARNING] SSH PasswordAuthentication is ENABLED
+  [WARNING] SSH PermitRootLogin is set to YES
+  [SUGGESTION] Install and configure auditd
+  [SUGGESTION] Configure UFW firewall
+  [SUGGESTION] Set minimum password length and complexity in /etc/security/pwquality.conf
+  [SUGGESTION] Harden sysctl network parameters (TCP SYN cookies, IP forwarding)
+
+================================================================================
+  -[ Lynis 3.0.9 Results ]-
+================================================================================
+  Great, no critical errors found.
+
+  Hardening index : 61 [ ############### ]
+  Tests performed : 248
+  Plugins enabled : 1
+
+  Status: SKOR DI BAWAH TARGET (Skor 61 < 70, Perlu Dilakukan Hardening).
+================================================================================

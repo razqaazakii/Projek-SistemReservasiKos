@@ -555,13 +555,19 @@ export async function deleteRoomAction(idOrSlug: string): Promise<ActionResponse
 }
 
 /**
- * Alias penamaan fungsi bahasa Indonesia sesuai spesifikasi modul praktikum:
- * - tambahKamar : createRoomAction
- * - ubahKamar   : updateRoomAction
- * - hapusKamar  : deleteRoomAction
+ * Fungsi pembungkus bahasa Indonesia sesuai spesifikasi modul praktikum:
+ * - tambahKamar : memanggil createRoomAction
+ * - ubahKamar   : memanggil updateRoomAction
+ * - hapusKamar  : memanggil deleteRoomAction
  */
-export {
-  createRoomAction as tambahKamar,
-  updateRoomAction as ubahKamar,
-  deleteRoomAction as hapusKamar,
-};
+export async function tambahKamar(arg1?: unknown, arg2?: unknown) {
+  return createRoomAction(arg1, arg2);
+}
+
+export async function ubahKamar(idOrSlug: string, rawData: unknown) {
+  return updateRoomAction(idOrSlug, rawData);
+}
+
+export async function hapusKamar(idOrSlug: string) {
+  return deleteRoomAction(idOrSlug);
+}

@@ -2,6 +2,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { connection } from 'next/server';
 import { roomsData } from '@/data/roomsData';
 import { Room } from '@/types/room';
 import Badge from '@/components/ui/Badge';
@@ -14,13 +15,8 @@ interface RoomDetailPageProps {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export async function generateStaticParams() {
-  return roomsData.map((room: Room) => ({
-    id: room.id,
-  }));
-}
-
 export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
+  await connection();
   const { id } = await params;
 
   // Simulasi pengujian untuk loading.tsx dan error.tsx

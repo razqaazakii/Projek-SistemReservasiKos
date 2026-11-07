@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { registerSchema } from '@/lib/validations/auth';
+import bcrypt from 'bcryptjs';
 
 export interface RegisterActionResult {
   success: boolean;
@@ -15,10 +16,6 @@ export interface RegisterActionResult {
   };
 }
 
-/**
- * Server Action: Mendaftarkan akun pengguna baru langsung ke database PostgreSQL
- * Terintegrasi dengan Validasi Sisi Server (Zod) untuk e-KYC E-KTP dan data diri.
- */
 export async function registerUserAction(data: {
   name: string;
   email: string;
@@ -68,7 +65,10 @@ export async function registerUserAction(data: {
       };
     }
 
-    // 3. Simpan user baru ke tabel User PostgreSQL
+    // 3. Hash password menggunakan fungsi slow hashing Bcrypt (Cost Factor 10, hemat memori ~4 KB)
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    // 4. Simpan user baru ke tabel User PostgreSQL
     const roleUpper = normalizedRole === 'admin' ? 'ADMIN' : 'PENYEWA';
 
     const newUser = await prisma.user.create({
@@ -76,7 +76,7 @@ export async function registerUserAction(data: {
         name: data.name.trim(),
         email: cleanEmail,
         phone: data.phone.trim(),
-        password: data.password,
+        password: hashedPassword, // Hash modular $2b$10$... tersimpan aman
         role: roleUpper,
       },
     });
@@ -100,9 +100,6 @@ export async function registerUserAction(data: {
   }
 }
 
-/**
- * Server Action: Mencari user di PostgreSQL berdasarkan email/no telp untuk login
- */
 export async function findUserByEmailAction(emailOrPhone: string) {
   try {
     const cleanInput = emailOrPhone.trim().toLowerCase();
@@ -168,6 +165,51 @@ export async function updateUserProfileDbAction(currentEmail: string, data: {
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Gagal memperbarui data di database.',
+    };
+  }
+}
+
+export async function loginUserAction(emailOrPhone: string, plainPassword: string) {
+  try {
+    const cleanInput = emailOrPhone.trim().toLowerCase();
+    const cleanDigits = emailOrPhone.trim().replace(/\D/g, '');
+
+    // 1. Cari data pengguna di PostgreSQL
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanInput },
+          ...(cleanDigits.length >= 8 ? [{ phone: cleanDigits }] : []),
+        ],
+      },
+    });
+
+    if (!user || !user.password) {
+      return { success: false, message: 'Email atau kata sandi tidak valid.' };
+    }
+
+    // 2. Bandingkan password input dengan hash Bcrypt ($2b$10$...) di sisi server
+    const isPasswordValid = await bcrypt.compare(plainPassword, user.password);
+    if (!isPasswordValid) {
+      return { success: false, message: 'Email atau kata sandi tidak valid.' };
+    }
+
+    return {
+      success: true,
+      message: 'Login berhasil.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role.toLowerCase(),
+      },
+    };
+  } catch (error) {
+    console.error('Failed to authenticate login with bcrypt:', error);
+    return {
+      success: false,
+      message: 'Terjadi kesalahan sistem saat proses login.',
     };
   }
 }

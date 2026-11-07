@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Poppins } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/layout/Navbar';
@@ -28,7 +29,9 @@ export default function RootLayout({
         className={`${poppins.className} min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased`}
       >
         {/* Header / Navbar Semantik */}
-        <Navbar />
+        <Suspense fallback={<header className="h-16 bg-white border-b border-slate-100" />}>
+          <Navbar />
+        </Suspense>
 
         {/* Konten Utama */}
         <main className="flex-1 w-full" id="main-content">

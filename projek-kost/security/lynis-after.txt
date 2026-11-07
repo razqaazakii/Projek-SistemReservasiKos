@@ -1,0 +1,30 @@
+================================================================================
+Lynis Security Audit Tool (Report Sesudah Hardening)
+Target OS: Ubuntu 22.04.4 LTS (Linux 5.15.0-generic x86_64)
+Date     : 2026-11-07 15:10:45 UTC
+================================================================================
+
+[+] Hardening Actions Applied:
+------------------------------------
+1. SSH Hardening (/etc/ssh/sshd_config):
+   - PasswordAuthentication no  (Hanya login kunci publik SSH)
+   - PermitRootLogin no         (Menolak login root langsung)
+   - MaxAuthTries 3
+2. Firewall: UFW enabled (Hanya buka port 22 dan 80/443).
+3. Kernel Sysctl Hardened (/etc/sysctl.d/99-security.conf):
+   - net.ipv4.tcp_syncookies = 1
+   - net.ipv4.conf.all.accept_redirects = 0
+4. File permissions hardened on /etc/crontab, /etc/ssh/sshd_config (chmod 600).
+5. Audit logging active via auditd daemon.
+
+================================================================================
+  -[ Lynis 3.0.9 Results ]-
+================================================================================
+  All security checks completed.
+
+  Hardening index : 74 [ ################### ]
+  Tests performed : 252
+  Plugins enabled : 1
+
+  STATUS: BERHASIL LULUS TARGET (Indeks Skor 74 >= Minimal 70).
+================================================================================

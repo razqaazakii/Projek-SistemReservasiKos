@@ -21,11 +21,11 @@ Tabel ini memetakan data penting di dalam aplikasi beserta perlindungan spesifik
 
 | No  | Data / Aset yang Dilindungi | Tujuan Keamanan                                                                          | Komponen Kriptografi          | Prioritas |
 | :-: | :-------------------------- | :--------------------------------------------------------------------------------------- | :---------------------------- | :-------: |
-|  1  | Password pengguna           | Kerahasiaan: Password asli tidak boleh disimpan di pangkalan data (database).            | Scrypt KDF + Salt Acak        |  Tinggi   |
+|  1  | Password pengguna           | Kerahasiaan: Password asli tidak boleh disimpan di pangkalan data (database).            | Bcrypt (Slow Hash Cost 10) + Salt Otomatis |  Tinggi   |
 |  2  | Integritas data reservasi   | Integritas: Mencegah data transaksi diubah secara diam-diam oleh pihak ketiga.           | HMAC-SHA256                   |  Tinggi   |
 |  3  | Token sesi autentikasi      | Autentikasi: Token harus sangat acak agar tidak bisa ditebak oleh peretas.               | CSPRNG `randomBytes(48)`      |  Tinggi   |
 |  4  | Objek data reservasi (JSON) | Integritas: Mendeteksi perubahan sekecil apa pun pada struktur data.                     | SHA-256 (Kanonikalisasi JSON) | Menengah  |
-|  5  | Salt (Garam) pembangkit hash| Keacakan: Setiap pengguna harus memiliki pelindung hash yang unik dan tidak terprediksi. | CSPRNG `randomBytes(32)`      | Menengah  |
+|  5  | Salt (Garam) pembangkit hash| Keacakan: Setiap pengguna memiliki pelindung hash unik 128-bit agar kebal Rainbow Table.  | Otomatis oleh Bcrypt (128-bit Salt) | Menengah  |
 
 ---
 
@@ -35,11 +35,11 @@ Tabel ini memetakan data penting di dalam aplikasi beserta perlindungan spesifik
 
 Berfungsi untuk mengamankan password pengguna agar tidak bisa dibaca oleh siapa pun, termasuk oleh pengembang aplikasi.
 
-- **Masukan (Input):** Teks password asli dan salt (opsional).
-- **Proses:** Sistem membuat nilai acak (salt), menggabungkannya dengan password asli, lalu mengacaknya menggunakan algoritma Scrypt.
-- **Keluaran (Output):** Kombinasi nilai hash dan salt sepanjang 64 karakter.
-- **Representasi Data:** Disimpan dalam format teks hexadecimal agar aman dan mudah dimasukkan ke dalam pangkalan data.
-- **Sumber Keacakan:** Menggunakan `crypto.randomBytes` dari Node.js yang mengambil nilai acak langsung dari mesin sistem operasi (CSPRNG).
+- **Masukan (Input):** Teks password asli pengguna.
+- **Proses:** Sistem menggunakan fungsi slow hash **Bcrypt** dengan cost factor 10, secara otomatis menghasilkan salt kriptografis unik 128-bit, lalu menghasilkan hash modular `$2b$10$...`.
+- **Keluaran (Output):** String hash modular Bcrypt sepanjang 60 karakter yang memuat pengenal algoritma, cost factor, salt, dan digest.
+- **Representasi Data:** Disimpan dalam kolom `password` pada tabel `User` di PostgreSQL.
+- **Efisiensi:** Sangat hemat memori (~4 KB RAM) dan aman dari serangan komputasi GPU paralel.
 
 ### Komponen 2: Pembangkit Token Sesi
 
@@ -190,7 +190,7 @@ Dijalankan dengan perintah: `npx jest crypto_core.test.js`
 
 - **Encoding vs Enkripsi/Hashing:** Sistem membedakan kedua fungsi ini dengan tegas:
   - *Encoding* (contoh: format hex) hanya untuk mengubah wujud data agar mudah disimpan, bukan untuk mengamankan isi data.
-  - *Enkripsi/Hashing* (algoritma Scrypt, HMAC, SHA-256) digunakan khusus untuk melindungi dan menyembunyikan kerahasiaan data.
+  - *Enkripsi/Hashing* (algoritma Bcrypt, HMAC, SHA-256) digunakan khusus untuk melindungi dan menyembunyikan kerahasiaan data.
 
 - **Pencegahan Timing Attack:** Validasi login dan MAC diproses menggunakan `crypto.timingSafeEqual()` agar peretas tidak bisa menebak password berdasarkan durasi respons dari server.
 
