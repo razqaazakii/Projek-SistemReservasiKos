@@ -213,14 +213,3 @@ Untuk evaluasi tatap muka pada pertemuan pekan 6, ikuti skenario runut berikut:
                   5. AAD swapping ditolak
 ```
 
----
-
-## 5. Ringkasan Kepatuhan Rubrik Penilaian (R2 - 100 Poin)
-
-| Kriteria | Bobot | Bukti Kepatuhan Teknis |
-| :--- | :---: | :--- |
-| **K1: Pemilihan mekanisme** | **20 poin** | Terdokumentasi lengkap di `KEPUTUSAN.md`: alur Kebutuhan → Mekanisme (AEAD AES-256-GCM) → Alasan komparatif terhadap alternatif (CBC+HMAC, ECB, ChaCha20). |
-| **K2: Implementasi dan parameter** | **30 poin** | Implementasi terstandar di `lib/crypto_core.js` dengan Node.js `crypto`. 4 Parameter lengkap: Kunci 256-bit, Nonce 96-bit unik CSPRNG, AAD kontekstual, Tag GMAC 128-bit. Terintegrasi ke Server Actions produk `actions/room.ts`. |
-| **K3: Penanganan masukan dan kunci** | **15 poin** | Kunci dibangkitkan CSPRNG (`npm run generate:key`). Kunci disimpan di `.env` (di luar git) dan diabaikan di `.gitignore`. Masukan divalidasi ketat dan penanganan galat bersifat gagal tertutup (*fail-closed*). |
-| **K4: Uji dan respons kondisi tidak sah** | **25 poin** | 8 skenario uji otomatis di `__tests__/crypto_core.test.js` (semua lulus): data dimodifikasi ditolak, tag dimodifikasi ditolak, kunci salah ditolak, AAD salah ditolak, roundtrip sukses. |
-| **K5: Dokumentasi, demonstrasi, dan AI_LOG.md** | **10 poin** | Berkas `KEPUTUSAN.md`, `AI_LOG.md`, skenario demo 3 menit, serta persiapan rilis git tag `v0.2`. Zero secret di repository. |
