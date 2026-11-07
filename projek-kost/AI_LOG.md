@@ -27,15 +27,26 @@ Dokumen ini mencatat riwayat pemanfaatan AI selama pengembangan sistem website *
 
 
 ## 2026-11-08 · Antigravity (Tugas 2 Kriptografi — Enkripsi Terautentikasi & Integritas Data)
-- Tujuan: Mengimplementasikan enkripsi terautentikasi (AEAD) berbasis AES-256-GCM untuk melindungi kerahasiaan dan integritas data produk kamar kos, mendokumentasikan parameter kriptografi (panjang kunci 256-bit, nonce 96-bit, AAD context binding, auth tag 128-bit), menerapkan penanganan masukan fail-closed dan manajemen kunci CSPRNG di luar repository, menyusun dokumen KEPUTUSAN.md, mengembangkan skenario uji otomatis dengan Jest, dan menyiapkan rilis tag v0.2.
-- Prompt ringkas: "Tugas 2 — Enkripsi Terautentikasi dan Integritas Data (Kriptografi) dengan ketentuan KEPUTUSAN.md (kebutuhan -> mekanisme -> alasan), parameter terdokumentasi (panjang kunci, nonce/IV unik, AAD, tag), kunci CSPRNG di luar repository, validasi fail-closed, minimal 4 skenario uji, AI_LOG.md tanpa secret, dan tag v0.2."
-- Bagian yang dipakai: `lib/crypto_core.js`, `lib/crypto_core.d.ts`, `actions/room.ts`, `package.json`, `.env.example`, `.env`, `__tests__/crypto_core.test.js`, `KEPUTUSAN.md`, `README.md`.
-- Yang diubah:
-  1. Menambahkan fungsi AEAD AES-256-GCM (`generateAeadKey`, `encryptProductAead`, `decryptProductAead`, `encryptProductData`, `decryptProductData`, `decryptProductDataJson`, `serializeAeadPayload`, `deserializeAeadPayload`) di `lib/crypto_core.js` dengan modul bawaan terstandar `node:crypto`.
-  2. Menerapkan pengikatan konteks data produk via Additional Authenticated Data (AAD) untuk mencegah serangan pemindahan ciphertext antar kamar kos (*context-swap attack*).
-  3. Menerapkan penanganan masukan ketat dan perilaku gagal tertutup (*fail-closed*): sistem melempar galat penolakan dan tidak pernah membocorkan plaintext parsial apabila ciphertext diubah, tag diubah, AAD tidak cocok, atau kunci salah.
-  4. Menyiapkan skrip npm `generate:key` untuk pembangkitan kunci CSPRNG 256-bit dan memisahkan penyimpanan kunci ke `.env` yang dikecualikan di `.gitignore` (hanya placeholder sintetis di `.env.example`).
-  5. Menghubungkan Server Actions `encryptProductNotesAction` dan `decryptProductNotesAction` di `actions/room.ts`.
-  6. Menyusun 8 skenario uji otomatis di `__tests__/crypto_core.test.js` yang menguji kondisi positif dan penolakan kondisi tidak sah (seluruh 14 pengujian lulus).
-  7. Menyusun dokumen arsitektur komprehensif `KEPUTUSAN.md` mencakup alur kebutuhan → mekanisme → alasan, dokumentasi 4 parameter, matriks uji, serta panduan demonstrasi 3 menit.
-- Cara memeriksa: Menjalankan `npm test` (14/14 unit test lulus dalam 0.66 detik), menjalankan `npm run generate:key` (berhasil menghasilkan kunci acak 64 karakter hex), menjalankan `npx tsc --noEmit` (0 error tipe), dan memverifikasi `git check-ignore .env` (kunci tersimpan aman di luar repositori).
+- Tujuan: Mengimplementasikan mekanisme Enkripsi Terautentikasi (AEAD) berbasis AES-256-GCM untuk melindungi kerahasiaan dan integritas data produk kos, mengkaji teori dan alasan pemilihan algoritma, memecahkan masalah serangan pemalsuan bit (*bit-flipping*) dan penukaran konteks (*context-swap*), merancang penanganan kunci CSPRNG di luar repositori yang gagal tertutup (*fail-closed*), menyusun dokumen KEPUTUSAN.md murni teknis, serta memverifikasi ketiadaan kebocoran rahasia dengan data sintetis.
+- Prompt ringkas:
+  1. "Bagaimana menerapkan Enkripsi Terautentikasi (AEAD) AES-256-GCM pada data produk kos dengan 4 parameter (panjang kunci, nonce/IV unik, AAD, dan tag otentikasi) menggunakan modul bawaan node:crypto yang bersifat gagal tertutup?"
+  2. "Mekanisme enkripsi ini sebenarnya dipilih berdasarkan teori apa? Mengapa bukan enkripsi biasa seperti AES-CBC, AES-ECB, atau ChaCha20, dan apa bedanya fungsi integritas MAC tag dengan enkripsi kerahasiaan murni?"
+  3. "Kunci PRODUCT_ENCRYPTION_KEY didapat dari mana dan bagaimana cara kerjanya? Mengapa wajib dibangkitkan dengan CSPRNG dan disimpan di luar repositori (.env)?"
+  4. "Periksa apakah ada kunci privat, token, password, atau data pribadi yang bocor di repositori, serta bersihkan dokumen KEPUTUSAN.md agar murni alur Kebutuhan -> Mekanisme -> Alasan tanpa memasukkan tabel rubrik penilaian dosen."
+- Bagian yang dipakai: `lib/crypto_core.js`, `lib/crypto_core.d.ts`, `actions/room.ts`, `__tests__/crypto_core.test.js`, `KEPUTUSAN.md`, `README.md`, `.env.example`, `.env`, `.gitignore`, `package.json`.
+- Yang diubah (Masalah yang Dipecahkan & Teori yang Diterapkan):
+  1. **Mengatasi Kerentanan Manipulasi Data (*Bit-Flipping Attack*) melalui Teori Single-Pass AEAD:**  
+     Menjawab masalah di mana enkripsi konvensional (seperti CBC atau CTR tanpa MAC) hanya menjaga kerahasiaan tetapi tidak kebal dari perubahan isi data oleh penyerang. Diimplementasikan fungsi `encryptProductAead` dan `decryptProductAead` berbasis AES-256-GCM yang secara simultan mengunci kerahasiaan dan menghitung *Authentication Tag* 128-bit GMAC dalam 1 putaran efisien (*single-pass*), memanfaatkan akselerasi hardware AES-NI pada CPU.
+  2. **Mencegah Serangan Pemindahan Konteks (*Context-Swap / Cut-and-Paste Attack*) menggunakan AAD:**  
+     Memecahkan masalah keamanan bisnis reservasi di mana penyerang berpotensi menyalin ciphertext sah dari kamar kos bertarif murah ke kamar bertarif mahal. Solusinya, identitas kamar (`kamar:roomId`) diikat sebagai *Additional Authenticated Data* (AAD) yang ikut divalidasi oleh Galois MAC sehingga proses dekripsi akan langsung menolak jika ciphertext dipindahkan ke kamar lain.
+  3. **Manajemen Kunci Kriptografi Berkekuatan Tinggi (CSPRNG) & Gagal Tertutup (*Fail-Closed*):**  
+     Menghilangkan risiko penggunaan kunci lemah atau *hardcoded*. Dibuat fungsi dan skrip `npm run generate:key` menggunakan `crypto.randomBytes(32)` (256-bit entropy dari kernel OS). Kunci dipisahkan ke file `.env` lokal di luar git, sedangkan file `.env.example` diproteksi hanya memakai string sintetis. Pada fungsi dekripsi, diterapkan arsitektur gagal tertutup di mana kesalahan tag, modifikasi ciphertext, atau kunci salah langsung melempar galat tertutup dan sama sekali tidak membocorkan *plaintext* parsial.
+  4. **Pembersihan Dokumen KEPUTUSAN.md & Penyusunan Matriks Uji Otomatis:**  
+     Memperbaiki dokumen keputusan teknis agar murni menyajikan arsitektur $\text{kebutuhan} \rightarrow \text{mekanisme} \rightarrow \text{alasan}$ sesuai permintaan soal (menghilangkan tabel meta rubrik penilaian), serta melengkapi berkas uji `__tests__/crypto_core.test.js` dengan 8 skenario komprehensif yang menguji kondisi positif dan penolakan berbagai kondisi tidak sah.
+  5. **Audit Keamanan Repositori & Penerapan Data Sintetis (*Zero-Leakage*):**  
+     Memastikan repositori GitHub bersih dari data pribadi (PII), password asli, maupun sertifikat kunci privat (`*.pem`/`*.key`), dengan mengaudit bahwa database seeder (`prisma/seed.ts`), mock data, dan unit test murni menggunakan nama, email, dan nomor telepon sintetis.
+- Cara memeriksa:
+  1. Menjalankan `npm test` untuk membuktikan 14/14 skenario uji lulus (termasuk verifikasi bahwa modifikasi data, tag, AAD, dan kunci salah ditolak secara tepat).
+  2. Menjalankan `npm run generate:key` untuk memverifikasi pembangkitan kunci acak 64 karakter hex.
+  3. Menjalankan `npx tsc --noEmit` untuk memastikan kesesuaian tipe data TypeScript pada Server Actions.
+  4. Menjalankan `git check-ignore .env` dan `git ls-files .env` untuk memvalidasi bahwa kunci rahasia tidak pernah terlacak ke repositori publik.
