@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "jest",
+    "generate:key": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "seed": "npx tsx prisma/seed.ts",
     "postinstall": "prisma skills sync || exit 0"
   },

@@ -571,3 +571,38 @@ export async function ubahKamar(idOrSlug: string, rawData: unknown) {
 export async function hapusKamar(idOrSlug: string) {
   return deleteRoomAction(idOrSlug);
 }
+
+
+/**
+ * Server Action: Mengenkripsi catatan rahasia/data produk kamar kos menggunakan AEAD (AES-256-GCM).
+ * Mengikat konteks kamar melalui AAD (kamar:roomId).
+ */
+export async function encryptProductNotesAction(
+  roomId: string,
+  secretNotes: string
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  try {
+    const { encryptProductData } = await import('@/lib/crypto_core');
+    const result = encryptProductData(secretNotes, null, `kamar:${roomId}`);
+    return { success: true, data: result };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Enkripsi data produk gagal' };
+  }
+}
+
+/**
+ * Server Action: Mendekripsi catatan rahasia/data produk kamar kos dengan verifikasi integritas konteks AAD.
+ * Menerapkan prinsip Gagal Tertutup (Fail-Closed).
+ */
+export async function decryptProductNotesAction(
+  roomId: string,
+  payload: { ciphertext: string; iv: string; tag: string }
+): Promise<{ success: boolean; data?: string; error?: string }> {
+  try {
+    const { decryptProductData } = await import('@/lib/crypto_core');
+    const decrypted = decryptProductData(payload, null, `kamar:${roomId}`);
+    return { success: true, data: decrypted };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Dekripsi data produk ditolak (gagal verifikasi integritas)' };
+  }
+}

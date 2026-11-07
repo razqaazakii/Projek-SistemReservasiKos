@@ -26,6 +26,7 @@ Tabel ini memetakan data penting di dalam aplikasi beserta perlindungan spesifik
 |  3  | Token sesi autentikasi      | Autentikasi: Token harus sangat acak agar tidak bisa ditebak oleh peretas.               | CSPRNG `randomBytes(48)`      |  Tinggi   |
 |  4  | Objek data reservasi (JSON) | Integritas: Mendeteksi perubahan sekecil apa pun pada struktur data.                     | SHA-256 (Kanonikalisasi JSON) | Menengah  |
 |  5  | Salt (Garam) pembangkit hash| Keacakan: Setiap pengguna memiliki pelindung hash unik 128-bit agar kebal Rainbow Table.  | Otomatis oleh Bcrypt (128-bit Salt) | Menengah  |
+|  6  | Data produk & sewa kos (Tugas 2) | Kerahasiaan + Integritas: Melindungi catatan sewa khusus dan data produk dari kebocoran serta manipulasi bit. | AEAD AES-256-GCM (NIST SP 800-38D) + Tag 128-bit + AAD | Sangat Tinggi |
 
 ---
 
@@ -71,6 +72,22 @@ Berfungsi untuk memastikan struktur dan isi objek data (JSON) selalu konsisten.
 - **Representasi Data:** Bersifat pasti (deterministik). Selama isi datanya sama, urutan penyusunan tidak akan merubah hasil akhir.
 - **Sumber Keacakan:** Tidak menggunakan nilai acak.
 
+### Komponen 5: Enkripsi Terautentikasi Data Produk (AEAD AES-256-GCM) — Tugas 2
+
+Berfungsi melindungi kerahasiaan dan integritas data produk kamar kos secara bersamaan (*single-pass*), mengikat identitas konteks kamar (AAD), dan mencegah serangan manipulasi bit (*bit-flipping*) serta *context-swap*.
+
+- **Dokumen Keputusan Arsitektur:** Lihat selengkapnya di [KEPUTUSAN.md](file:///c:/Users/ASUS/Documents/Kuliah%20Computer%20Science/Semester%205/Praktikum%20Pengembangan%20Website/ReservasiKos/projek-kost/KEPUTUSAN.md).
+- **Masukan (Input):** Objek/teks data produk, Kunci 256-bit, dan konteks AAD (contoh: `kamar:kost-001`).
+- **Proses:** Sistem membangkitkan nonce 96-bit unik via CSPRNG (`crypto.randomBytes(12)`), mengenkripsi dengan cipher `aes-256-gcm`, melampirkan data konteks AAD, dan menghasilkan Galois MAC authentication tag 128-bit.
+- **Keluaran (Output):** Ciphertext hexadecimal, IV unik (24 hex), Tag otentikasi (32 hex), AAD konteks, dan string serial portabel `v1:<iv>:<tag>:<ciphertext>`.
+- **Parameter Kriptografi:**
+  - **Panjang Kunci:** 256-bit (32 bytes / 64 hex characters)
+  - **Nonce / IV Unik:** 96-bit (12 bytes) unik per operasi enkripsi (CSPRNG)
+  - **Additional Authenticated Data (AAD):** Pengikat konteks produk kamar kos
+  - **Tag Otentikasi:** 128-bit (16 bytes) Galois MAC
+- **Prinsip Gagal Tertutup (*Fail-Closed*):** Jika ciphertext dimodifikasi 1 bit saja, tag diubah, AAD berbeda, atau kunci salah, proses dekripsi langsung melempar galat penolakan dan TIDAK PERNAH mengembalikan potongan plaintext.
+- **Penyimpanan Kunci:** Kunci disimpan di luar repository dalam environment variable lokal `.env` (`PRODUCT_ENCRYPTION_KEY`) dan dilindungi oleh `.gitignore`. Kunci baru dapat dibangkitkan kapan saja menggunakan `npm run generate:key`.
+
 ### Alur Kerja Registrasi & Login
 
 **Proses Registrasi (Daftar Akun Baru):**
@@ -104,20 +121,33 @@ Sistem diuji dengan empat cara untuk memastikan ketahanannya:
 
 ```bash
 # Menjalankan seluruh pengujian otomatis
-npx jest crypto_core.test.js
+npm test
 ```
 
 ---
 
 ## 5. Hasil Pengujian (K4)
 
-Dijalankan dengan perintah: `npx jest crypto_core.test.js`
+Dijalankan dengan perintah: `npm test`
 
-### Ringkasan Hasil
+### Ringkasan Hasil Pengujian Otomatis
 
-| Test Suite          | Total | Passed | Failed | Waktu  |
-| :------------------ | :---: | :----: | :----: | :----: |
-| crypto_core.test.js |  26   |   26   |   0    | ~0.4 s |
+| Test Suite | Total Pengujian | Lulus (Passed) | Gagal (Failed) | Durasi |
+| :--- | :---: | :---: | :---: | :---: |
+| `__tests__/crypto_core.test.js` | **14** | **14** | **0** | **~0.66 s** |
+
+### Pengujian Tugas 2: AEAD AES-256-GCM Data Produk
+
+| No | Skenario Uji | Kategori | Kondisi Input & Deskripsi | Hasil |
+| :-: | :--- | :---: | :--- | :---: |
+| 1 | Skenario 1 (Positif): Roundtrip Enkripsi & Dekripsi Data Produk | Positif | Plaintext produk kos, kunci 256-bit, IV 96-bit unik, AAD `kamar:kost-001` | **PASS** |
+| 2 | Skenario 2 (Negatif Integritas): Modifikasi Ciphertext (Tampering) Ditolak | Negatif | Ciphertext diubah 1 karakter hex oleh penyerang -> dekripsi gagal tertutup (*fail-closed*) | **PASS** |
+| 3 | Skenario 3 (Negatif Integritas): Modifikasi Tag Otentikasi Ditolak | Negatif | Tag otentikasi diubah 1 karakter hex -> ditolak seketika oleh verifikasi GMAC | **PASS** |
+| 4 | Skenario 4 (Negatif Otorisasi): Penggunaan Kunci Salah Ditolak | Negatif | Ciphertext didekripsi dengan kunci 256-bit lain -> ditolak seketika | **PASS** |
+| 5 | Skenario 5 (Negatif Konteks): Modifikasi AAD (Context Swap) Ditolak | Negatif | Ciphertext kamar 001 didekripsi dengan AAD kamar 999 -> ditolak | **PASS** |
+| 6 | Skenario 6: Keunikan Nonce & Ciphertext CSPRNG | Keamanan | Plaintext sama dienkripsi 2x -> menghasilkan IV & ciphertext yang berbeda unik | **PASS** |
+| 7 | Skenario 7: Validasi Masukan Cacat Ditolak | Validasi | Kunci bukan 32 byte, IV cacat, atau tag cacat ditolak dengan exception | **PASS** |
+| 8 | Skenario 8: Format Serialisasi Portabel `v1:<iv>:<tag>:<ciphertext>` | Integrasi | Serialisasi dan deserialisasi format portabel string sukses | **PASS** |
 
 ### Detail Per Skenario
 
