@@ -1,15 +1,6 @@
-# KEPUTUSAN.md — Keputusan Arsitektur Kriptografi (Tugas 2)
+# Keputusan Arsitektur Kriptografi -  (Tugas 2)
 
-**Mata Kuliah:** Kriptografi & Keamanan Siber  
-**Topik:** Tugas 2 — Enkripsi Terautentikasi dan Integritas Data (Kriptografi)  
-**Aplikasi:** R-Stay (Sistem Informasi Reservasi Kos)  
-**Pengembang:** Razqa Azaki (NIM: 105224046)  
-**Versi Rilis:** `v0.2`  
-**Repository:** [GitHub - Projek-SistemReservasiKos](https://github.com/razqaazakii/Projek-SistemReservasiKos.git)  
-
----
-
-## 1. Alur Keputusan: Kebutuhan → Mekanisme → Alasan
+## 1. Alur Keputusan: Kebutuhan -> Mekanisme -> Alasan
 
 ```
 +--------------------------------------------------------------------------------+
@@ -38,8 +29,6 @@
 +--------------------------------------------------------------------------------+
 ```
 
----
-
 ### 1.1 Kebutuhan Keamanan (Threat Model & Business Requirements)
 
 Pada platform **R-Stay**, data produk kamar kos memuat informasi publik (katalog kamar, fasilitas standar) sekaligus informasi internal yang sensitif dan kritikal:
@@ -54,8 +43,6 @@ Pada platform **R-Stay**, data produk kamar kos memuat informasi publik (katalog
 
 Oleh karena itu, sistem membutuhkan mekanisme yang **secara atomik melindungi kerahasiaan sekaligus integritas dan keaslian konteks data**.
 
----
-
 ### 1.2 Mekanisme yang Dipilih: AEAD AES-256-GCM
 
 Mekanisme yang dipilih adalah **Authenticated Encryption with Associated Data (AEAD)** berbasis algoritma **AES-256-GCM (Advanced Encryption Standard in Galois/Counter Mode)** yang diimplementasikan menggunakan pustaka bawaan terstandar **Node.js `crypto`** (OpenSSL engine).
@@ -69,8 +56,6 @@ Mekanisme yang dipilih adalah **Authenticated Encryption with Associated Data (A
 | **Additional Authenticated Data (AAD)** | Variabel (misal: `kamar:kost-001`) | String UTF-8 / Buffer representasi konteks entitas | Mengikat ciphertext ke konteks produk/kamar secara kriptografis. AAD tidak dienkripsi tetapi diverifikasi utuh oleh tag otentikasi. |
 | **Tag Otentikasi (*Authentication Tag*)** | **128 bit** (16 bytes) | 32 karakter hexadecimal, dihasilkan oleh modul GMAC via `cipher.getAuthTag()` | Melindungi ciphertext dan AAD dari pemalsuan. Jika ada perubahan 1 bit pada data/AAD, verifikasi tag akan gagal seketika. |
 | **Format Serial Portabel** | Format komposit `v1:<iv>:<tag>:<ciphertext>` | String ASCII terkontrol | Memudahkan penyimpanan pada satu kolom database atau transmisi API secara terstruktur. |
-
----
 
 ### 1.3 Alasan Pemilihan & Analisis Trade-Off
 
@@ -92,8 +77,6 @@ Berikut adalah matriks komparasi teknis yang mendasari keputusan pemilihan **AES
 2. **Perlindungan Terhadap Serangan Context-Swap melalui AAD:** Fitur AAD memungkinkan sistem mengikat identitas kamar (`roomId`) ke dalam tag kriptografi tanpa menambah ukuran ciphertext.
 3. **Pustaka Terstandar & Terpelihara Tanpa Dependensi Pihak Ketiga:** Menggunakan modul bawaan `node:crypto` yang dipelihara langsung oleh tim inti Node.js dan OpenSSL. Hal ini meminimalkan risiko kerentanan rantai pasok (*supply chain attacks*).
 4. **Kebal Serangan Padding Oracle:** Beroperasi dalam mode counter (CTR) sehingga tidak membutuhkan padding byte PKCS#7.
-
----
 
 ## 2. Penanganan Masukan dan Manajemen Kunci
 
@@ -136,8 +119,6 @@ Sistem menerapkan validasi masukan ketat sebelum memproses data:
    * Apabila tag otentikasi tidak cocok, data ciphertext telah diubah, konteks AAD berbeda, atau kunci salah, fungsi `decryptProductAead` segera menangkap galat internal OpenSSL dan melempar galat generik tertutup:
      `Error: Autentikasi data gagal: data ciphertext, tag otentikasi, atau konteks AAD telah dimodifikasi, atau kunci salah.`
    * **Tidak ada potongan plaintext atau informasi struktur internal yang dikembalikan** saat autentikasi gagal.
-
----
 
 ## 3. Matriks Skenario Uji (Kriteria K4)
 
@@ -184,32 +165,3 @@ Snapshots:   0 total
 Time:        0.66 s
 Ran all test suites.
 ```
-
----
-
-## 4. Panduan Demonstrasi Individual (±3 Menit Pekan 6)
-
-Untuk evaluasi tatap muka pada pertemuan pekan 6, ikuti skenario runut berikut:
-
-```
-[00:00 - 01:00] Menjelaskan Kebutuhan, Mekanisme, dan 4 Parameter AEAD
-                - Buka KEPUTUSAN.md dan lib/crypto_core.js
-                - Tunjukkan fungsi encryptProductAead & decryptProductAead
-                - Jelaskan parameter: Key 256-bit, Nonce 96-bit, AAD context, Tag 128-bit
-
-[01:00 - 02:00] Menunjukkan Tempat Kunci Disimpan di Luar Repository & Fail-Closed
-                - Buka file .env dan tunjukkan variabel PRODUCT_ENCRYPTION_KEY
-                - Buka .gitignore dan buktikan baris '.env' aktif mengabaikan secret
-                - Buka .env.example untuk menunjukkan hanya placeholder sintetis yang masuk git
-                - Tunjukkan implementasi 'try { decipher.final() } catch' yang bersifat gagal tertutup
-
-[02:00 - 03:00] Eksekusi Uji Otomatis & Penolakan Kondisi Tidak Sah
-                - Jalankan perintah di terminal: npm test
-                - Tunjukkan 8 skenario uji AEAD lulus:
-                  1. Roundtrip berhasil
-                  2. Modifikasi ciphertext ditolak
-                  3. Modifikasi tag ditolak
-                  4. Kunci salah ditolak
-                  5. AAD swapping ditolak
-```
-
