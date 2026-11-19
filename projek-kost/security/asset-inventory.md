@@ -16,3 +16,4 @@ Dokumen *Asset Inventory* ini memuat daftar inventaris seluruh aset penting yang
 | **AST-07** | Antarmuka Frontend (Next.js) | Software / Frontend | Rendah | Tinggi | Tinggi | Kerahasiaan rendah karena basis kode bersifat terbuka, integritas penting untuk menangkal penyisipan skrip berbahaya (XSS), dan ketersediaan memastikan layanan selalu siap diakses publik. |
 | **AST-08** | Layanan Backend API & Server | Software / Backend | Sedang | Tinggi | Tinggi | Kerahasiaan melindungi alur logika utama, integritas mencegah eksekusi instruksi ilegal, dan ketersediaan wajib terjaga agar seluruh fitur merespons dengan optimal. |
 | **AST-09** | Integrasi WhatsApp Gateway API | Layanan Eksternal | Sedang | Tinggi | Sedang | Kerahasiaan menjaga keamanan token akses layanan, integritas memastikan isi pesan pengingat terkirim utuh tanpa cacat, dan ketersediaan penting guna mendukung pengiriman pesan tepat waktu. |
+

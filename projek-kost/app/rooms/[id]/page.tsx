@@ -6,6 +6,7 @@ import { connection } from 'next/server';
 import { roomsData } from '@/data/roomsData';
 import { Room } from '@/types/room';
 import Badge from '@/components/ui/Badge';
+import FormUlasan from '@/components/FormUlasan';
 import { prisma } from '@/lib/prisma';
 
 interface RoomDetailPageProps {
@@ -284,6 +285,9 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
               </ul>
             </section>
           )}
+
+          {/* Form Ulasan Kamar (Modul 7 - Galat 4) */}
+          <FormUlasan itemId={room.id} />
         </article>
 
         {/* Kolom Kanan: Sticky Booking Card & CTA */}
